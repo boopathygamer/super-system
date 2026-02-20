@@ -19,7 +19,6 @@ _MOCK_MODULES = [
     'accelerate', 'bitsandbytes', 'safetensors', 'safetensors.torch',
     # Core modules that depend on ML
     'core', 'core.model', 'core.tokenizer', 'core.streaming',
-    'core.model_loader',
     # Config
     'config', 'config.settings',
     # Brain modules that depend on ML

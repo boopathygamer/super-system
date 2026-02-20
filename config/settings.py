@@ -13,8 +13,6 @@ from typing import Optional
 # ──────────────────────────────────────────────
 # Base Paths
 # ──────────────────────────────────────────────
-BASE_DIR = Path(os.getenv("LLM_BASE_DIR", r"C:\llm"))
-MODEL_DIR = BASE_DIR / "mistral-7B-Instruct-v0.3"
 DATA_DIR = BASE_DIR / "data"
 MEMORY_DIR = DATA_DIR / "memory_store"
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -23,57 +21,6 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-
-@dataclass
-class ModelConfig:
-    """Mistral 7B model configuration."""
-    model_path: Path = MODEL_DIR
-    safetensors_file: str = "consolidated.safetensors"
-    tokenizer_file: str = "tokenizer.model.v3"
-
-    # Architecture (from params.json)
-    dim: int = 4096
-    n_layers: int = 32
-    head_dim: int = 128
-    hidden_dim: int = 14336
-    n_heads: int = 32
-    n_kv_heads: int = 8
-    norm_eps: float = 1e-5
-    vocab_size: int = 32768
-    rope_theta: float = 1000000.0
-
-    # Quantization
-    use_4bit: bool = True
-    bnb_4bit_compute_dtype: str = "float16"
-    bnb_4bit_quant_type: str = "nf4"
-    use_double_quant: bool = True
-
-    # Device
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype: torch.dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-
-@dataclass
-class GenerationConfig:
-    """Text generation hyperparameters."""
-    max_new_tokens: int = 2048
-    temperature: float = 0.7
-    top_p: float = 0.9
-    top_k: int = 50
-    repetition_penalty: float = 1.1
-    do_sample: bool = True
-    stop_sequences: list = field(default_factory=lambda: ["</s>", "[/INST]"])
-
-
-@dataclass
-class VisionConfig:
-    """Vision encoder configuration."""
-    clip_model_name: str = "ViT-L-14-336"
-    clip_pretrained: str = "openai"
-    image_size: int = 336
-    vision_dim: int = 768
-    projection_dim: int = 4096  # Must match model dim
-    num_image_tokens: int = 576  # 336/14 = 24, 24*24 = 576 patches
 
 
 @dataclass
@@ -154,7 +101,7 @@ class AgentConfig:
 @dataclass
 class ProviderConfig:
     """Multi-model provider configuration."""
-    # Active provider: auto | gemini | claude | chatgpt | local
+    # Active provider: auto | gemini | claude | chatgpt
     provider: str = os.getenv("LLM_PROVIDER", "auto")
 
     # API Keys (from environment variables)
@@ -182,7 +129,6 @@ class ProviderConfig:
             providers.append("claude")
         if self.openai_api_key:
             providers.append("chatgpt")
-        providers.append("local")  # Always available
         return providers
 
 
@@ -198,10 +144,7 @@ class APIConfig:
 # ──────────────────────────────────────────────
 # Global Singleton Configs
 # ──────────────────────────────────────────────
-model_config = ModelConfig()
-generation_config = GenerationConfig()
-vision_config = VisionConfig()
-brain_config = BrainConfig()
+
 agent_config = AgentConfig()
 provider_config = ProviderConfig()
 api_config = APIConfig()

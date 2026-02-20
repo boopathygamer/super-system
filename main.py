@@ -7,7 +7,6 @@ Supports:
   - Gemini (Google)    — set GEMINI_API_KEY
   - Claude (Anthropic) — set CLAUDE_API_KEY
   - ChatGPT (OpenAI)   — set OPENAI_API_KEY
-  - Local Mistral 7B   — always available as fallback
 
 Usage:
     python main.py                          # Start API server (auto-detect provider)
@@ -15,9 +14,7 @@ Usage:
     python main.py --chat --provider gemini # Chat with Gemini
     python main.py --chat --provider claude # Chat with Claude
     python main.py --chat --provider chatgpt # Chat with ChatGPT
-    python main.py --chat --provider local  # Chat with local Mistral
     python main.py --providers              # List available providers
-    python main.py --analyze img            # Analyze an image (local only)
 """
 
 import argparse
@@ -93,7 +90,7 @@ def show_banner(registry=None):
         p = registry.active
         provider_info = f"   Provider: {p.name.upper()} ({p.model})"
     else:
-        provider_info = "   Provider: LOCAL (Mistral 7B)"
+        provider_info = "   Provider: NONE DETECTED"
 
     print(f"""
     ╔══════════════════════════════════════════════════════════════╗
@@ -106,7 +103,6 @@ def show_banner(registry=None):
     ║     🟢 Gemini (Google)     — GEMINI_API_KEY                  ║
     ║     🟣 Claude (Anthropic)  — CLAUDE_API_KEY                  ║
     ║     🔵 ChatGPT (OpenAI)   — OPENAI_API_KEY                  ║
-    ║     ⚪ Mistral 7B (Local)  — Always available                ║
     ║                                                              ║
     ║   {provider_info:<59}║
     ║                                                              ║
@@ -152,7 +148,7 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
     agent = AgentController(generate_fn=generate_fn)
 
     active = registry.active
-    model_name = f"{active.name}/{active.model}" if active else "local/Mistral-7B"
+    model_name = f"{active.name}/{active.model}" if active else "none"
 
     print(f"\n{'═' * 60}")
     print(f"  💬 Interactive Chat — Model: {model_name}")
@@ -161,7 +157,7 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
     print(f"    /stats     — Show memory stats")
     print(f"    /reset     — Clear conversation")
     print(f"    /provider  — Show active provider")
-    print(f"    /switch X  — Switch to provider X (gemini/claude/chatgpt/local)")
+    print(f"    /switch X  — Switch to provider X (gemini/claude/chatgpt)")
     print(f"    /models    — List all available providers")
     print(f"{'═' * 60}\n")
 
@@ -207,7 +203,7 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
             if user_input.startswith("/switch"):
                 parts = user_input.split()
                 if len(parts) < 2:
-                    print("Usage: /switch gemini|claude|chatgpt|local\n")
+                    print("Usage: /switch gemini|claude|chatgpt\n")
                     continue
                 target = parts[1].lower()
                 if registry.set_active(target):
@@ -272,32 +268,6 @@ def list_providers():
         print()
 
 
-def analyze_image(image_path: str, question: str = None):
-    """Analyze a single image from command line."""
-    from core.model_loader import load_model
-    from core.tokenizer import MistralTokenizer
-    from core.inference import InferenceEngine
-    from vision.pipeline import VisionPipeline
-
-    print(f"\n🧠 Loading model...")
-    model = load_model()
-    tokenizer = MistralTokenizer()
-    engine = InferenceEngine(model, tokenizer)
-
-    print(f"👁️ Initializing vision...")
-    pipeline = VisionPipeline(model, tokenizer, engine)
-
-    print(f"🔍 Analyzing: {image_path}")
-    question = question or "Describe this image in detail. What do you see?"
-
-    result = pipeline.analyze(
-        image=image_path,
-        question=question,
-        mode="general",
-        chain_of_thought=True,
-    )
-
-    print(f"\n📋 Analysis:\n{result}\n")
 
 
 def main():
@@ -310,7 +280,7 @@ def main():
     )
     parser.add_argument(
         "--provider", type=str, default="auto",
-        choices=["auto", "gemini", "claude", "chatgpt", "local"],
+        choices=["auto", "gemini", "claude", "chatgpt"],
         help="LLM provider to use (default: auto-detect)"
     )
     parser.add_argument(
@@ -320,14 +290,6 @@ def main():
     parser.add_argument(
         "--providers", action="store_true",
         help="List all available model providers"
-    )
-    parser.add_argument(
-        "--analyze", type=str, default=None,
-        help="Analyze an image file (uses local model)"
-    )
-    parser.add_argument(
-        "--question", type=str, default=None,
-        help="Question for image analysis"
     )
     parser.add_argument(
         "--log-level", type=str, default="INFO",
@@ -340,8 +302,6 @@ def main():
 
     if args.providers:
         list_providers()
-    elif args.analyze:
-        analyze_image(args.analyze, args.question)
     elif args.chat:
         interactive_chat(provider=args.provider, api_key=args.api_key)
     else:

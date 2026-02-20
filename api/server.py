@@ -86,35 +86,20 @@ async def startup():
     logger.info("=" * 60)
 
     try:
-        # 1. Load model
-        from core.model_loader import load_model
-        from core.tokenizer import MistralTokenizer
-        from core.inference import InferenceEngine
-
-        logger.info("Loading Mistral 7B...")
-        state.model = load_model()
-        state.tokenizer = MistralTokenizer()
-        state.engine = InferenceEngine(state.model, state.tokenizer)
-        logger.info("✅ Model loaded")
-
-        # 2. Initialize vision pipeline
-        try:
-            from vision.pipeline import VisionPipeline
-            state.vision_pipeline = VisionPipeline(
-                state.model, state.tokenizer, state.engine
-            )
-            # Inject into agent tool
-            from agents.tools.image_analyzer import set_vision_pipeline
-            set_vision_pipeline(state.vision_pipeline)
-            logger.info("✅ Vision pipeline ready")
-        except Exception as e:
-            logger.warning(f"⚠️ Vision pipeline failed to initialize: {e}")
-
-        # 3. Initialize agent
+        # 1. Initialize agent
         from agents.controller import AgentController
-        generate_fn = lambda prompt: state.engine.generate(prompt)
-        state.agent_controller = AgentController(generate_fn=generate_fn)
-        logger.info("✅ Agent controller ready")
+        
+        # We don't have a local engine anymore to create a default generate_fn here
+        # The ProviderRegistry will handle generation directly
+        import builtins
+        registry = getattr(builtins, "_llm_registry", None)
+        
+        if registry:
+            generate_fn = registry.generate_fn()
+            state.agent_controller = AgentController(generate_fn=generate_fn)
+            logger.info("✅ Agent controller ready")
+        else:
+            logger.warning("⚠️ No LLM Registry found on startup.")
 
         state.is_ready = True
         logger.info("=" * 60)
@@ -190,76 +175,6 @@ async def chat(request: ChatRequest):
         logger.error(f"Chat error: {e}", exc_info=True)
         raise HTTPException(500, "Generation failed. Please try again.")
 
-
-# ──────────────────────────────────────────────
-# Vision Endpoint
-# ──────────────────────────────────────────────
-
-@app.post("/vision/analyze", response_model=VisionResponse)
-async def analyze_image(
-    file: UploadFile = File(...),
-    question: str = Form("Describe this image in detail."),
-    mode: str = Form("general"),
-    chain_of_thought: bool = Form(True),
-):
-    """Upload and analyze an image with expert-level detail."""
-    if not state.is_ready:
-        raise HTTPException(503, "System not ready")
-    if state.vision_pipeline is None:
-        raise HTTPException(503, "Vision pipeline not available")
-
-    start = time.time()
-
-    # ── Validate file extension ──
-    file_ext = Path(file.filename).suffix.lower() if file.filename else ""
-    if file_ext not in _ALLOWED_IMAGE_EXTENSIONS:
-        raise HTTPException(
-            400,
-            f"Unsupported image format. Allowed: {', '.join(sorted(_ALLOWED_IMAGE_EXTENSIONS))}",
-        )
-
-    # ── Validate file size ──
-    contents = await file.read()
-    if len(contents) > _MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            400,
-            f"File too large ({len(contents) // 1024 // 1024}MB). Max: {_MAX_UPLOAD_SIZE // 1024 // 1024}MB",
-        )
-
-    file_id = str(uuid.uuid4())[:8]
-    save_path = UPLOADS_DIR / f"{file_id}{file_ext}"
-
-    try:
-        with open(save_path, "wb") as f:
-            f.write(contents)
-
-        # Analyze
-        analysis = state.vision_pipeline.analyze(
-            image=str(save_path),
-            question=question,
-            mode=mode,
-            chain_of_thought=chain_of_thought,
-        )
-
-        return VisionResponse(
-            analysis=analysis,
-            mode=mode,
-            confidence=0.8,
-            duration_ms=(time.time() - start) * 1000,
-        )
-
-    except HTTPException:
-        raise  # Re-raise validation errors
-    except Exception as e:
-        logger.error(f"Vision error: {e}", exc_info=True)
-        raise HTTPException(500, "Image analysis failed. Please try again.")
-    finally:
-        # Clean up uploaded file on error
-        if save_path.exists() and 'analysis' not in dir():
-            try:
-                save_path.unlink()
-            except OSError:
-                pass
 
 
 # ──────────────────────────────────────────────

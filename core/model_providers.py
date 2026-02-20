@@ -8,9 +8,8 @@ Supports 4 providers:
   4. Local Mistral 7B  — built-in InferenceEngine
 
 Features:
-  - Unified generate() / stream() interface
   - Auto-detection from environment API keys
-  - Fallback chain: primary → secondary → local
+  - Fallback chain: primary → secondary
   - Health checks + error handling
   - Provider registry with hot-switching
 """
@@ -35,7 +34,6 @@ class ProviderType(Enum):
     GEMINI = "gemini"
     CLAUDE = "claude"
     CHATGPT = "chatgpt"
-    LOCAL = "local"
     AUTO = "auto"
 
 
@@ -462,108 +460,6 @@ class ChatGPTProvider(ModelProvider):
             logger.error(f"ChatGPT stream error: {e}")
 
 
-# ──────────────────────────────────────────────
-# 4. Local Mistral Provider (Built-in)
-# ──────────────────────────────────────────────
-
-class MistralLocalProvider(ModelProvider):
-    """
-    Local Mistral 7B provider — wraps the existing InferenceEngine.
-    This is the fallback provider that always works offline.
-    """
-
-    def __init__(self, engine=None):
-        super().__init__(name="local", model="Mistral-7B-Instruct-v0.3")
-        self._engine = engine
-        self._loaded = engine is not None
-
-    def load_model(self):
-        """Lazy-load the local Mistral model."""
-        if self._loaded:
-            return
-
-        try:
-            from core.model_loader import load_model
-            from core.tokenizer import MistralTokenizer
-            from core.inference import InferenceEngine
-
-            logger.info("🧠 Loading local Mistral 7B model...")
-            model = load_model()
-            tokenizer = MistralTokenizer()
-            self._engine = InferenceEngine(model, tokenizer)
-            self._loaded = True
-            logger.info("✅ Local Mistral provider initialized")
-        except Exception as e:
-            logger.error(f"❌ Local model loading failed: {e}")
-            self._loaded = False
-
-    def generate(
-        self,
-        prompt: str,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        system_prompt: str = "",
-        **kwargs,
-    ) -> GenerationResult:
-        if not self._loaded:
-            self.load_model()
-
-        if not self._engine:
-            return GenerationResult(error="Local model not loaded")
-
-        start = time.time()
-        try:
-            full_prompt = prompt
-            if system_prompt:
-                full_prompt = f"[INST] {system_prompt}\n\n{prompt} [/INST]"
-
-            text = self._engine.generate(
-                prompt=full_prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
-
-            latency = (time.time() - start) * 1000
-            self._track(latency)
-            return GenerationResult(
-                text=text,
-                provider="local",
-                model=self.model,
-                latency_ms=latency,
-            )
-        except Exception as e:
-            latency = (time.time() - start) * 1000
-            self._track(latency, error=True)
-            logger.error(f"Local generate error: {e}")
-            return GenerationResult(error=str(e), provider="local")
-
-    def stream(
-        self,
-        prompt: str,
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        system_prompt: str = "",
-        **kwargs,
-    ) -> Generator[str, None, None]:
-        if not self._loaded:
-            self.load_model()
-
-        if not self._engine:
-            return
-
-        try:
-            full_prompt = prompt
-            if system_prompt:
-                full_prompt = f"[INST] {system_prompt}\n\n{prompt} [/INST]"
-
-            for chunk in self._engine.stream_generate(
-                prompt=full_prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            ):
-                yield chunk
-        except Exception as e:
-            logger.error(f"Local stream error: {e}")
 
 
 # ──────────────────────────────────────────────
@@ -650,7 +546,7 @@ class ProviderRegistry:
         """
         Generate using active provider with automatic fallback.
 
-        Tries: active → fallback chain → local Mistral
+        Tries: active → next available provider
         """
         # Try active provider first
         if self.active:
@@ -709,10 +605,9 @@ class ProviderRegistry:
         Priority:
           1. If preferred is specified (not "auto"), use that
           2. Otherwise, first available API key wins
-          3. Local Mistral is always registered as fallback
 
         Args:
-            preferred: "auto", "gemini", "claude", "chatgpt", or "local"
+            preferred: "auto", "gemini", "claude", or "chatgpt"
             gemini_key: Gemini API key (or from GEMINI_API_KEY env)
             claude_key: Claude API key (or from CLAUDE_API_KEY env)
             openai_key: OpenAI API key (or from OPENAI_API_KEY env)
@@ -759,17 +654,11 @@ class ProviderRegistry:
             registry.register(ChatGPTProvider(api_key=okey, model=openai_model))
             detected.append("chatgpt")
 
-        # Always register local Mistral as fallback
-        registry.register(MistralLocalProvider())
-        detected.append("local")
-
         # Set active provider
         if preferred != "auto" and preferred in registry._providers:
             registry.set_active(preferred)
         elif detected:
-            # First API provider if available, otherwise local
-            api_providers = [d for d in detected if d != "local"]
-            registry.set_active(api_providers[0] if api_providers else "local")
+            registry.set_active(detected[0])
 
         logger.info(
             f"🔍 Auto-detected providers: {detected}. "
