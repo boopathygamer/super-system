@@ -434,6 +434,66 @@ def run_deep_researcher(topic: str, provider: str = "auto", api_key: str = None)
     researcher.compile_dossier(topic)
 
 
+def run_multi_agent_debate(topic: str, provider: str = "auto", api_key: str = None):
+    from core.model_providers import create_provider_registry
+    from agents.controller import AgentController
+    from agents.profiles.multi_agent_orchestrator import MultiAgentOrchestrator
+    
+    registry = create_provider_registry(provider, api_key)
+    if not registry.active:
+        print("❌ No active provider found. Debate cannot start.")
+        return
+        
+    print(f"\n🤝 Initializing Multi-Agent Debate ({registry.active.name})")
+    
+    agent = AgentController(generate_fn=registry.generate_fn())
+    orchestrator = MultiAgentOrchestrator(agent)
+    
+    result = orchestrator.orchestrate_debate(topic)
+    print("\n" + "=" * 60)
+    print(result.answer)
+    print("=" * 60 + "\n")
+
+
+def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_key: str = None):
+    from core.model_providers import create_provider_registry
+    from agents.controller import AgentController
+    from agents.profiles.devops_reviewer import DevOpsReviewer
+    
+    registry = create_provider_registry(provider, api_key)
+    if not registry.active:
+        print("❌ No active provider found. DevOps Reviewer cannot start.")
+        return
+        
+    print(f"\n🛠️ Initializing DevOps Reviewer ({registry.active.name})")
+    
+    agent = AgentController(generate_fn=registry.generate_fn())
+    reviewer = DevOpsReviewer(agent)
+    
+    result = reviewer.autonomous_fix(issue, repo_path)
+    print("\n" + "=" * 60)
+    print(result.answer)
+    print("=" * 60 + "\n")
+
+def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
+    """Universal Feature: Trigger the Auto-Evolution (AESCE) Engine."""
+    print(f"\n[INFO] Initializing Synthesized Consciousness Engine using provider '{provider}'...")
+    registry = ProviderRegistry()
+    if api_key:
+        api_key_env = f"{provider.upper()}_API_KEY"
+        os.environ[api_key_env] = api_key
+        
+    from brain.memory import MemoryManager
+    from brain.aesce import SynthesizedConsciousnessEngine
+    
+    memory = MemoryManager()
+    engine = SynthesizedConsciousnessEngine(memory, registry.generate_fn())
+    
+    try:
+        engine.trigger_dream_state()
+    except KeyboardInterrupt:
+        print("\n[INFO] Dream State interrupted by user.")
+
 def main():
     parser = argparse.ArgumentParser(
         description="Universal AI Agent — Multi-Model Provider System"
@@ -511,6 +571,28 @@ def main():
         help="Run the Deep Web Intelligence Bot to compile a dossier on a given topic."
     )
     
+    # === Multi-Agent Orchestrator ===
+    parser.add_argument(
+        "--collaborate", type=str, default=None,
+        help="Run a Multi-Agent Debate on a specific topic or problem."
+    )
+    
+    # === DevOps PR Reviewer ===
+    parser.add_argument(
+        "--devops", type=str, default=None,
+        help="Propose an autonomous fix for a given issue."
+    )
+    parser.add_argument(
+        "--repo-path", type=str, default=".",
+        help="Target repository path for the DevOps reviewer (default current directory)."
+    )
+    
+    # === AESCE Engine ===
+    parser.add_argument(
+        "--aesce", action="store_true",
+        help="Trigger the Auto-Evolution & Synthesized Consciousness Engine (Dream State)."
+    )
+    
     parser.add_argument(
         "--log-level", type=str, default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -542,6 +624,12 @@ def main():
         run_archivist(args.organize, provider=args.provider, api_key=args.api_key)
     elif args.contract_audit:
         run_contract_hunter(args.contract_audit, provider=args.provider, api_key=args.api_key)
+    elif args.collaborate:
+        run_multi_agent_debate(args.collaborate, provider=args.provider, api_key=args.api_key)
+    elif args.devops:
+        run_devops_reviewer(args.devops, repo_path=args.repo_path, provider=args.provider, api_key=args.api_key)
+    elif args.aesce:
+        run_aesce_dream_state(provider=args.provider, api_key=args.api_key)
     elif args.providers:
         list_providers()
     elif args.chat:

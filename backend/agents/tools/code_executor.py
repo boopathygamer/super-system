@@ -206,3 +206,19 @@ def evaluate_expression(expression: str) -> dict:
         return {"success": True, "result": str(result)}
     except Exception as e:
         return {"success": False, "result": None, "error": f"{type(e).__name__}: {e}"}
+
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class CodeResult:
+    output: Optional[str] = None
+    error: Optional[str] = None
+
+class CodeExecutor:
+    def execute(self, code: str, timeout: int = 30) -> CodeResult:
+        res = execute_python(code, timeout=timeout)
+        if res.get("success"):
+            return CodeResult(output=res.get("stdout"))
+        else:
+            return CodeResult(output=res.get("stdout"), error=res.get("stderr"))

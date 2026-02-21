@@ -26,6 +26,7 @@ from brain.trace_store import (
 from brain.reward_model import RewardComputer, CompositeReward
 from brain.credit_assignment import CreditAssignmentEngine, CreditReport
 from brain.prompt_evolver import PromptEvolver
+from brain.epistemic_checker import EpistemicChecker
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,9 @@ class ThinkingLoop:
         
         # Phase 11: Deep Expert Reflection
         self.expert_reflection = expert_reflection or ExpertReflectionEngine(generate_fn)
+        
+        # Phase 12: Epistemic Fact Checking
+        self.epistemic_checker = EpistemicChecker(generate_fn)
 
         # Learning counters
         self._success_count: int = 0
@@ -265,6 +269,16 @@ class ThinkingLoop:
                 generate_fn=self.generate_fn,
                 regression_tests=regression_tests,
             )
+            
+            # Universal Feature 3: Epistemic Fact Check
+            # Only run if baseline confidence is decent, otherwise it's just wasting tokens
+            if step.verification.confidence > 0.6:
+                passed_epistemic, epistemic_report = self.epistemic_checker.check_claims(step.candidate)
+                if not passed_epistemic:
+                    logger.warning("Fact Check Failed: Forcing Confidence to 0.1 to trigger LEARNING LOOP.")
+                    step.verification.confidence = 0.1  # Force rejection
+                    # Inject the hallucination feedback into the failure loop
+                    step.verification.critic_details = f"EPISTEMIC FAILURE: {epistemic_report}"
 
             # ASSESS RISK: Tri-Shield objective
             step.risk_assessment = self.risk_manager.assess_risk(
@@ -435,16 +449,46 @@ class ThinkingLoop:
         if not result.strategies_used:
             result.strategies_used = [current_mode.value]
 
-        # Post-solve reflection
-        success = result.mode == GatingMode.EXECUTE
-        ref = self.metacognition.reflect(problem, success, self.generate_fn)
-        result.reflection = ref.to_memory()
+        # Universal Feature 5: Goal Tree Visualization Generation
+        # Append a Mermaid.js diagram to the final answer detailing how the problem was processed
+        if result.final_answer and not result.final_answer.endswith("```mermaid"):
+            goal_tree = self._generate_goal_tree(trajectory, result, domain)
+            result.final_answer += f"\n\n### Universal Goal Tree Breakdown\n```mermaid\n{goal_tree}\n```\n"
 
         # ── Phase 10: Post-Solve Learning Pipeline ──
         self._post_solve_learning(trajectory, result, domain)
 
         logger.info(result.summary())
         return result
+        
+    def _generate_goal_tree(self, trajectory: TrajectoryTrace, result: ThinkingResult, domain: ProblemDomain) -> str:
+        """Universal Feature 5: Generate a Mermaid Flowchart representing the reasoning path."""
+        lines = [
+            "graph TD",
+            f"  Start[User Request] --> Classify[Domain: {domain.value}]",
+            f"  Classify --> Strategy[{result.strategies_used[0] if result.strategies_used else 'Chain_of_thought'}]",
+        ]
+        
+        last_node = "Strategy"
+        for i, step in enumerate(result.steps):
+            gen_node = f"Gen_{i}[Iteration {i+1}: Synthesize]"
+            lines.append(f"  {last_node} --> {gen_node}")
+            
+            conf_str = f"Conf: {step.verification.confidence:.2f}" if step.verification else "Conf: ???"
+            ver_node = f"Verify_{i}[Verify: {conf_str}]"
+            lines.append(f"  {gen_node} --> {ver_node}")
+            
+            act_node = f"Gate_{i}[Gate: {step.action_taken}]"
+            lines.append(f"  {ver_node} --> {act_node}")
+            
+            if step.action_taken in ("execute", "sandbox"):
+                lines.append(f"  {act_node} --> Success[Execution Successful]")
+                break
+            else:
+                lines.append(f"  {act_node} --> Fail[Critique & Re-Hypothesize]")
+                last_node = "Fail"
+                
+        return "\n".join(lines)
 
     def _post_solve_learning(
         self,

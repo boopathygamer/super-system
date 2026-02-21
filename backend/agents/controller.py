@@ -261,12 +261,34 @@ class AgentController:
         # Step 0: UNIVERSAL — Domain classification + Persona detection
         domain_match = self.domain_router.classify(user_input)
         persona = self.persona_engine.detect(user_input)
-        expert = get_expert(domain_match.primary_domain)
+        
+        # FEATURE 1: Dynamic Domain Generation
+        # If confidence is 0.0 (no match), generate a dynamic expert context on the fly
+        if domain_match.confidence == 0.0:
+            logger.info("Universal Router: No domain matched. Generating Dynamic Expert...")
+            dynamic_expert_prompt = self._generate_dynamic_expert(user_input)
+            expert_context = dynamic_expert_prompt
+            domain_match.primary_domain = "dynamic_expert"
+        else:
+            expert = get_expert(domain_match.primary_domain)
+            expert_context = expert.get_prompt_injection()
+            
+            # FEATURE 2: Polymath Synthesis
+            # If there are secondary domains, fuse them together
+            if domain_match.is_multi_domain:
+                logger.info(f"Universal Router: Multi-domain detected. Activating Polymath Synthesis blending {domain_match.primary_domain} and {domain_match.secondary_domains}")
+                polymath_context = f"[POLYMATH FUSION ACTIVATED]\nPrimary Domain: {domain_match.primary_domain}\n\n{expert_context}\n\n"
+                for sec_domain in domain_match.secondary_domains:
+                    sec_expert = get_expert(sec_domain)
+                    if sec_expert:
+                        polymath_context += f"Secondary Domain: {sec_domain}\n{sec_expert.get_prompt_injection()}\n\n"
+                expert_context = polymath_context
+
         reasoning = self.advanced_reasoner.reason(
             user_input,
             domain=domain_match.primary_domain,
             persona=self.persona_engine.current_name,
-            domain_context=expert.get_prompt_injection(),
+            domain_context=expert_context,
         )
         logger.info(
             f"Domain: {domain_match.primary_domain} "
@@ -306,7 +328,7 @@ class AgentController:
         # Step 3: Build enhanced prompt with domain, persona, reasoning, tools, memory
         enhanced_prompt = self._build_enhanced_prompt(
             user_input, task_spec, tool_results,
-            domain_context=expert.get_prompt_injection(),
+            domain_context=expert_context,
             persona_context=persona.get_style_prompt(),
             reasoning_prompt=reasoning.reasoning_prompt,
         )
@@ -530,6 +552,22 @@ class AgentController:
             logger.warning(f"Failed to generate tool args: {e}")
 
         return None
+        
+    def _generate_dynamic_expert(self, user_input: str) -> str:
+        """Universal Feature 1: Generate a dynamic domain expert for out-of-bounds topics."""
+        prompt = (
+            f"The user has asked a question that does not fit into our standard domains.\n"
+            f"Question: {user_input}\n\n"
+            f"Act as a 'Domain Architect'. Concoct a complete, highly-specialized 'Expert System Prompt' "
+            f"specifically tailored to answer this kind of question.\n"
+            f"Respond ONLY with the system prompt, written in the first person ('I am the Master [specialty]...'). "
+            f"Do not answer the user's question, just define the persona."
+        )
+        try:
+            return self.generate_fn(prompt)
+        except Exception as e:
+            logger.warning(f"Failed to generate dynamic expert: {e}")
+            return "You are a helpful general assistant."
 
     def _build_enhanced_prompt(
         self,
