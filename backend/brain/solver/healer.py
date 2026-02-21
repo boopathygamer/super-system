@@ -176,7 +176,7 @@ class SelfHealer:
 
             if not fixed_code or fixed_code == current_code:
                 result.healing_trace.append(
-                    f"   ❌ LLM could not fix — trying again"
+                    "   ❌ LLM could not fix — trying again"
                 )
                 continue
 
@@ -199,7 +199,7 @@ class SelfHealer:
                 )
             else:
                 result.healing_trace.append(
-                    f"   ⚠️ Fix introduced new errors — rolling back"
+                    "   ⚠️ Fix introduced new errors — rolling back"
                 )
 
             result.attempts = attempt

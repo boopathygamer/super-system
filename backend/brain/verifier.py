@@ -242,9 +242,9 @@ class VerifierStack:
                     result = check_fn(candidate)
                     if result:
                         passed += 1
-                        checks.append(f"✅ Custom check passed")
+                        checks.append("✅ Custom check passed")
                     else:
-                        checks.append(f"❌ Custom check failed")
+                        checks.append("❌ Custom check failed")
                 except Exception as e:
                     checks.append(f"❌ Custom check error: {e}")
 
@@ -305,8 +305,8 @@ class VerifierStack:
                 prompt += f"  {i + 1}. {test}\n"
 
             prompt += (
-                f"\nFor each test, answer PASS or FAIL.\n"
-                f"End with: PASS_RATE: <0-100>%"
+                "\nFor each test, answer PASS or FAIL.\n"
+                "End with: PASS_RATE: <0-100>%"
             )
 
             try:

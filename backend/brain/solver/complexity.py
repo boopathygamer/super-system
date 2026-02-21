@@ -52,7 +52,7 @@ class ComplexityResult:
         if self.data_structures:
             lines.append(f"📦 Data Structures: {', '.join(self.data_structures)}")
         if self.suggestions:
-            lines.append(f"💡 Suggestions:")
+            lines.append("💡 Suggestions:")
             for s in self.suggestions:
                 lines.append(f"   - {s}")
         return "\n".join(lines)

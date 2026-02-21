@@ -85,7 +85,7 @@ class HypothesisEngine:
         n = n_hypotheses or self.config.max_hypotheses
 
         prompt = (
-            f"You are a multi-hypothesis reasoning engine. "
+            "You are a multi-hypothesis reasoning engine. "
             f"Generate exactly {n} DIFFERENT approaches to solve this problem. "
             f"Each approach should use a fundamentally different strategy.\n\n"
             f"Problem: {problem}\n"
@@ -95,17 +95,17 @@ class HypothesisEngine:
             prompt += f"\nRelevant context from past experience:\n{context}\n"
 
         prompt += (
-            f"\nFor each approach, provide:\n"
-            f"1. A short title\n"
-            f"2. The detailed approach\n"
-            f"3. Key assumptions\n"
-            f"4. Potential risks\n\n"
-            f"Format each as:\n"
-            f"HYPOTHESIS <N>:\n"
-            f"Title: ...\n"
-            f"Approach: ...\n"
-            f"Assumptions: ...\n"
-            f"Risks: ...\n"
+            "\nFor each approach, provide:\n"
+            "1. A short title\n"
+            "2. The detailed approach\n"
+            "3. Key assumptions\n"
+            "4. Potential risks\n\n"
+            "Format each as:\n"
+            "HYPOTHESIS <N>:\n"
+            "Title: ...\n"
+            "Approach: ...\n"
+            "Assumptions: ...\n"
+            "Risks: ...\n"
         )
 
         response = generate_fn(prompt)
@@ -198,10 +198,10 @@ class HypothesisEngine:
             prompt += f"\n{h.to_prompt()}\n"
 
         prompt += (
-            f"\n\nBased on the weights and evidence, synthesize the BEST approach. "
-            f"Draw heavily from the highest-weighted hypotheses, but incorporate "
-            f"useful elements from others. Be specific and actionable.\n\n"
-            f"SYNTHESIZED SOLUTION:\n"
+            "\n\nBased on the weights and evidence, synthesize the BEST approach. "
+            "Draw heavily from the highest-weighted hypotheses, but incorporate "
+            "useful elements from others. Be specific and actionable.\n\n"
+            "SYNTHESIZED SOLUTION:\n"
         )
 
         candidate = synthesize_fn(prompt)

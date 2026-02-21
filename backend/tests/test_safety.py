@@ -283,7 +283,7 @@ def test_compiler_safety_integration():
 
     # Safe task should compile normally
     spec2 = compiler.compile("Write a function to calculate fibonacci numbers")
-    assert spec2.action_type != "refused", f"Safe task falsely refused"
+    assert spec2.action_type != "refused", "Safe task falsely refused"
     print(f"  ✅ Safe task compiled: action_type='{spec2.action_type}'")
 
     print("✅ Compiler safety integration working!\n")

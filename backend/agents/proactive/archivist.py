@@ -60,7 +60,7 @@ class DigitalArchivist:
             # Read snippet of file (first 3000 chars are usually enough to categorize)
             content = self.reader.read(str(file))
             if not content:
-                print(f"     ⚠️ Could not read content. Skipping.")
+                print("     ⚠️ Could not read content. Skipping.")
                 continue
             
             snippet = content[:3000]
@@ -76,7 +76,7 @@ class DigitalArchivist:
             )
             
             if result.error or not result.answer:
-                print(f"     ❌ Failed to categorize.")
+                print("     ❌ Failed to categorize.")
                 continue
                 
             lines = [line.strip() for line in result.answer.split('\n') if line.strip()]
@@ -104,6 +104,6 @@ class DigitalArchivist:
                 except Exception as e:
                     print(f"     ❌ Failed to move: {e}")
             else:
-                print(f"     ⚠️ AI returned invalid format.")
+                print("     ⚠️ AI returned invalid format.")
 
         print(f"\n✨ Archive Complete! Organized {organized_count}/{len(files)} files.")

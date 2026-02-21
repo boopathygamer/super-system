@@ -109,7 +109,7 @@ class NightWatchDaemon:
         """Compile findings into markdown."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        report = f"# ☀️ System Morning Report\n"
+        report = "# ☀️ System Morning Report\n"
         report += f"**Date:** {now}\n"
         report += f"**Workspace:** `{self.workspace_dir}`\n\n"
         

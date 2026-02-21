@@ -70,7 +70,7 @@ class DeepWebResearcher:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(dossier_content)
             
-        print(f"\n✅ [DEEP WEB RESEARCHER] Operation Complete.")
+        print("\n✅ [DEEP WEB RESEARCHER] Operation Complete.")
         print(f"📄 Classified Dossier written to: {filepath.absolute()}")
         return filepath
 

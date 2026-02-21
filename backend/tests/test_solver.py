@@ -28,15 +28,15 @@ def test_pattern_library():
 
     results = lib.search("binary search in sorted list")
     assert any("binary" in p.name.lower() for p in results)
-    print(f"  ✅ Search 'binary search': found match")
+    print("  ✅ Search 'binary search': found match")
 
     results = lib.search("graph traversal BFS")
     assert any("bfs" in p.name.lower() for p in results)
-    print(f"  ✅ Search 'graph BFS': found match")
+    print("  ✅ Search 'graph BFS': found match")
 
     results = lib.search("dynamic programming memoization")
     assert any("dp" in p.name.lower() or "memo" in p.name.lower() for p in results)
-    print(f"  ✅ Search 'DP memoization': found match")
+    print("  ✅ Search 'DP memoization': found match")
 
     # Store a new pattern
     custom = CodingPattern(
@@ -54,7 +54,7 @@ def test_pattern_library():
     found = lib.get("test_pattern")
     assert found is not None
     assert found.name == "test_pattern"
-    print(f"  ✅ Pattern retrieved by name")
+    print("  ✅ Pattern retrieved by name")
 
     # List categories
     cats = lib.list_categories()
@@ -199,7 +199,7 @@ def process(data):
     static_errors = [e for e in errors if e.error_type == "static"]
     assert any("eval" in e.message.lower() for e in static_errors), \
         "Should detect eval() security risk"
-    print(f"  ✅ Static analysis: eval() detected as security risk")
+    print("  ✅ Static analysis: eval() detected as security risk")
 
     # Test clean code passes
     good_code = """
@@ -223,7 +223,7 @@ def get_value(items):
     errors = healer._detect_errors(no_return_code)
     logic_warnings = [e for e in errors if e.error_type == "logic"]
     assert len(logic_warnings) > 0, "Should warn about get_ function without return"
-    print(f"  ✅ Logic check: missing return detected for get_ function")
+    print("  ✅ Logic check: missing return detected for get_ function")
 
     print("✅ Self-Healer detection tests passed!\n")
 
@@ -334,7 +334,7 @@ def is_palindrome(s: str) -> bool:
     ])
     results2 = gen.run_tests(code, suite2)
     assert results2.failed == 1, "Expected 1 failure"
-    print(f"  ✅ Failure detection: correctly caught wrong expected output")
+    print("  ✅ Failure detection: correctly caught wrong expected output")
 
     print("✅ Test Generator tests passed!\n")
 
@@ -404,14 +404,14 @@ def solve(arr):
     code = engine._extract_code(response_with_code)
     assert "def solve" in code
     assert "sorted" in code
-    print(f"  ✅ Code extraction from markdown blocks")
+    print("  ✅ Code extraction from markdown blocks")
 
     # Test problem categorization
     assert engine._categorize_problem("Sort an array of integers") == "sorting"
     assert engine._categorize_problem("Traverse a graph using BFS") == "graph"
     assert engine._categorize_problem("Calculate fibonacci sequence") == "math"
     assert engine._categorize_problem("Check if string is palindrome") == "string"
-    print(f"  ✅ Problem categorization working")
+    print("  ✅ Problem categorization working")
 
     # Test tag extraction
     tags = engine._extract_tags("Binary search in a sorted array with recursion")
@@ -453,7 +453,7 @@ def test_confidence_calculation():
         tests_total=5,
     )
     bad_conf = engine._calculate_confidence(bad_result)
-    assert bad_conf < conf, f"Bad solution should score lower"
+    assert bad_conf < conf, "Bad solution should score lower"
     print(f"  ✅ Bad syntax confidence: {bad_conf:.2f} (lower)")
 
     # No tests should have lower confidence

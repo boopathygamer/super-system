@@ -162,13 +162,13 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
 
     print(f"\n{'═' * 60}")
     print(f"  💬 Interactive Chat — Model: {model_name}")
-    print(f"  Commands:")
-    print(f"    /think     — Force thinking loop")
-    print(f"    /stats     — Show memory stats")
-    print(f"    /reset     — Clear conversation")
-    print(f"    /provider  — Show active provider")
-    print(f"    /switch X  — Switch to provider X (gemini/claude/chatgpt)")
-    print(f"    /models    — List all available providers")
+    print("  Commands:")
+    print("    /think     — Force thinking loop")
+    print("    /stats     — Show memory stats")
+    print("    /reset     — Clear conversation")
+    print("    /provider  — Show active provider")
+    print("    /switch X  — Switch to provider X (gemini/claude/chatgpt)")
+    print("    /models    — List all available providers")
     print(f"{'═' * 60}\n")
 
     while True:
@@ -477,6 +477,9 @@ def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_
 
 def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
     """Universal Feature: Trigger the Auto-Evolution (AESCE) Engine."""
+    import os
+    from core.model_providers import ProviderRegistry
+    
     print(f"\n[INFO] Initializing Synthesized Consciousness Engine using provider '{provider}'...")
     registry = ProviderRegistry()
     if api_key:

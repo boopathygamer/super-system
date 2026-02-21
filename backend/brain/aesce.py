@@ -126,5 +126,5 @@ class SynthesizedConsciousnessEngine:
         
         # In a fully integrated loop, we would instantiate DevOpsReviewer here
         # and ask it to `git checkout -b evolution`, `copy file`, `git commit`.
-        logger.warning(f"🚀 [AESCE AUTONOMOUS DIRECTIVE]: A structurally superior brain module has been generated.")
+        logger.warning("🚀 [AESCE AUTONOMOUS DIRECTIVE]: A structurally superior brain module has been generated.")
         logger.warning(f"Run DevOps Reviewer to automatically merge staged file '{safe_name}' into production.")
