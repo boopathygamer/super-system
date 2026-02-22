@@ -20,18 +20,25 @@ MAX_CODE_LENGTH = 10_000  # chars
 MAX_EXPRESSION_LENGTH = 1_000
 
 DANGEROUS_PATTERNS = [
-    # Original blocklist
+    # Core dangerous operations
     "import os", "import sys", "import subprocess", "import shutil",
     "__import__", "eval(", "exec(", "compile(",
     "open(", "os.system", "os.popen", "os.remove", "os.unlink",
     "shutil.rmtree", "subprocess.", "ctypes.",
-    "importlib.", "builtins", "globals(", "locals(",
+    "importlib.", "__builtins__", "builtins", "globals(", "locals(",
     "getattr(", "setattr(", "delattr(",
+    "breakpoint(", "__class__", "__subclasses__",
+    "__bases__", "__mro__", "__globals__",
+    # Encoding-based bypass attempts
+    "base64.b64decode", "codecs.decode",
+    "bytes.fromhex", "bytearray.fromhex",
     # Network attack & exploitation tools
     "import scapy", "from scapy", "import nmap", "from nmap",
     "import paramiko", "from paramiko",
     "import socket", "from socket",
     "import requests", "from requests",
+    "import urllib", "from urllib",
+    "import http", "from http",
     # Data exfiltration patterns
     "import smtplib", "from smtplib",
     "import ftplib", "from ftplib",
@@ -44,6 +51,11 @@ DANGEROUS_PATTERNS = [
     "import win32crypt", "from win32crypt",
     "import sqlite3",  # often used to steal browser data
     "import winreg", "from winreg",
+    # Process/system manipulation
+    "import signal", "from signal",
+    "import multiprocessing", "from multiprocessing",
+    "import threading", "from threading",
+    "import pty", "from pty",
 ]
 
 # AST node types allowed in safe expression evaluation
@@ -96,10 +108,34 @@ def _check_code_safety(code: str) -> str | None:
     if len(code) > MAX_CODE_LENGTH:
         return f"Code too long ({len(code)} chars, max {MAX_CODE_LENGTH})"
 
+    # String-based blocklist check
     code_lower = code.lower()
     for pattern in DANGEROUS_PATTERNS:
         if pattern.lower() in code_lower:
             return f"Blocked dangerous pattern: {pattern}"
+
+    # AST-based import detection (catches obfuscated imports)
+    try:
+        tree = ast.parse(code)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                module = getattr(node, 'module', '') or ''
+                names = [alias.name for alias in getattr(node, 'names', [])]
+                all_names = [module] + names
+                blocked_modules = {
+                    'os', 'sys', 'subprocess', 'shutil', 'ctypes',
+                    'importlib', 'socket', 'requests', 'urllib',
+                    'http', 'smtplib', 'ftplib', 'telnetlib',
+                    'pynput', 'keyboard', 'pyautogui', 'win32crypt',
+                    'winreg', 'signal', 'multiprocessing', 'threading',
+                    'pty', 'scapy', 'nmap', 'paramiko',
+                }
+                for name in all_names:
+                    top_module = name.split('.')[0] if name else ''
+                    if top_module in blocked_modules:
+                        return f"Blocked import: {name}"
+    except SyntaxError:
+        pass  # Let it fail at execution time
 
     return None
 

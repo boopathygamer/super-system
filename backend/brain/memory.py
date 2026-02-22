@@ -205,6 +205,10 @@ class MemoryManager:
         self.persist_dir = Path(persist_dir or self.config.memory_persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
+        # Configurable capacity limits
+        self._max_failures = 1000
+        self._max_successes = 500
+
         # Storage
         self.failures: List[FailureTuple] = []
         self.successes: List[SuccessRecord] = []
@@ -221,6 +225,15 @@ class MemoryManager:
 
         # BM25 index for keyword search (hybrid with vector)
         self._bm25 = BM25Index()
+
+        # Debounced write tracking
+        self._last_save_time: float = 0.0
+        self._save_interval: float = 5.0  # seconds between disk writes
+        self._dirty: bool = False
+
+        # Context cache
+        self._context_cache: Dict[str, tuple] = {}  # query -> (timestamp, result)
+        self._context_cache_ttl: float = 30.0  # seconds
 
         # Load persisted data
         self._load_from_disk()
@@ -269,6 +282,18 @@ class MemoryManager:
 
         self.failures.append(failure)
 
+        # Enforce capacity limit — remove oldest when full
+        if len(self.failures) > self._max_failures:
+            removed = self.failures[:len(self.failures) - self._max_failures]
+            self.failures = self.failures[-self._max_failures:]
+            # Clean removed entries from BM25
+            for r in removed:
+                self._bm25.remove(r.id)
+
+        # Add to BM25 index
+        doc_text = f"{failure.task} {failure.observation} {failure.root_cause} {failure.fix}"
+        self._bm25.add(failure.id, doc_text)
+
         # Add regression test
         if failure.new_test:
             self.regression_tests.append(failure.new_test)
@@ -301,7 +326,12 @@ class MemoryManager:
     def store_success(self, success: SuccessRecord) -> str:
         """Store a successful approach."""
         self.successes.append(success)
-        self._save_to_disk()
+
+        # Enforce capacity limit
+        if len(self.successes) > self._max_successes:
+            self.successes = self.successes[-self._max_successes:]
+
+        self._debounced_save()
         logger.info(f"Stored success [{success.id}]")
         return success.id
 
@@ -467,10 +497,14 @@ class MemoryManager:
     def build_context(self, task: str) -> str:
         """
         Build a context string from relevant memories for a new task.
-
-        This is injected into the LLM prompt to help avoid past mistakes
-        and leverage successful approaches.
+        Cached for 30 seconds to avoid redundant hybrid searches.
         """
+        # Check cache
+        if task in self._context_cache:
+            cached_time, cached_result = self._context_cache[task]
+            if time.time() - cached_time < self._context_cache_ttl:
+                return cached_result
+
         parts = []
 
         # Retrieve similar failures
@@ -504,11 +538,31 @@ class MemoryManager:
         if tests:
             parts.append(f"\n✅ REGRESSION TESTS TO RUN: {len(tests)} tests available")
 
-        return "\n".join(parts) if parts else ""
+        result = "\n".join(parts) if parts else ""
+        
+        # Cache the result
+        self._context_cache[task] = (time.time(), result)
+        # Prune old cache entries
+        if len(self._context_cache) > 100:
+            oldest = sorted(self._context_cache.items(), key=lambda x: x[1][0])[:50]
+            for k, _ in oldest:
+                del self._context_cache[k]
+        
+        return result
 
     # ──────────────────────────────────────
     # Persistence
     # ──────────────────────────────────────
+
+    def _debounced_save(self):
+        """Save to disk at most once per save_interval."""
+        now = time.time()
+        if now - self._last_save_time >= self._save_interval:
+            self._save_to_disk()
+            self._last_save_time = now
+            self._dirty = False
+        else:
+            self._dirty = True
 
     def _save_to_disk(self):
         """Persist all memory to JSON files."""

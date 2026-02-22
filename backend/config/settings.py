@@ -4,7 +4,6 @@ All paths, hyperparameters, and thresholds live here.
 """
 
 import os
-import torch
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -13,7 +12,8 @@ from typing import Optional
 # ──────────────────────────────────────────────
 # Base Paths
 # ──────────────────────────────────────────────
-BASE_DIR = Path(os.getenv("LLM_BASE_DIR", r"C:\llm"))
+_DEFAULT_BASE = str(Path(__file__).parent.parent / "data")
+BASE_DIR = Path(os.getenv("LLM_BASE_DIR", _DEFAULT_BASE))
 DATA_DIR = BASE_DIR / "data"
 MEMORY_DIR = DATA_DIR / "memory_store"
 UPLOADS_DIR = DATA_DIR / "uploads"

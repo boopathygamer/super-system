@@ -10,11 +10,28 @@ import logging
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import defusedxml.ElementTree as ET
 
 from agents.tools.registry import registry, ToolRiskLevel
 
 logger = logging.getLogger(__name__)
+
+# ── HTTP session with connection pooling and retries ──
+_http_session = requests.Session()
+_retry_strategy = Retry(
+    total=3,
+    backoff_factor=0.5,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
+_adapter = HTTPAdapter(max_retries=_retry_strategy, pool_connections=5, pool_maxsize=10)
+_http_session.mount("https://", _adapter)
+_http_session.mount("http://", _adapter)
+_http_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+})
+_DEFAULT_TIMEOUT = 10  # seconds
 
 # Attempt to load DDGS
 try:
@@ -39,10 +56,7 @@ def _scrape_clean_text(url: str, timeout: int = 10) -> str:
          return "[NETWORK BLOCKED] The Army Agent has blocked this request due to malicious domain signatures."
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        resp = requests.get(url, headers=headers, timeout=timeout)
+        resp = _http_session.get(url, timeout=_DEFAULT_TIMEOUT)
         if resp.status_code != 200:
             return f"Error: Status {resp.status_code}"
             
@@ -92,7 +106,7 @@ def _search_deep_web(query: str, max_results: int) -> List[Dict[str, str]]:
     results = []
     try:
         url = f"http://export.arxiv.org/api/query?search_query=all:{query}&start=0&max_results={max_results}"
-        resp = requests.get(url, timeout=10)
+        resp = _http_session.get(url, timeout=_DEFAULT_TIMEOUT)
         if resp.status_code == 200:
             root = ET.fromstring(resp.text)
             for entry in root.findall("{http://www.w3.org/2005/Atom}entry"):
@@ -117,10 +131,7 @@ def _search_dark_web(query: str, max_results: int) -> List[Dict[str, str]]:
     results = []
     try:
         url = f"https://ahmia.fi/search/?q={query}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        resp = requests.get(url, headers=headers, timeout=15)
+        resp = _http_session.get(url, timeout=15)
         
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "html.parser")

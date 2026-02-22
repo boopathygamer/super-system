@@ -388,3 +388,36 @@ class ProcessManager:
             for pid in to_remove:
                 del self._processes[pid]
             return {"cleared": len(to_remove)}
+
+    def auto_expire(self, max_age_seconds: int = 3600):
+        """Remove completed/failed processes older than max_age_seconds."""
+        now = time.time()
+        with self._lock:
+            to_remove = [
+                pid for pid, p in self._processes.items()
+                if p.status != ProcessStatus.RUNNING
+                and p.ended_at
+                and now - p.ended_at > max_age_seconds
+            ]
+            for pid in to_remove:
+                del self._processes[pid]
+            return {"expired": len(to_remove)}
+
+    def shutdown(self):
+        """Graceful shutdown — kill all running processes and clean up."""
+        logger.info("ProcessManager shutting down — killing active processes...")
+        with self._lock:
+            for pid, managed in self._processes.items():
+                if managed.status == ProcessStatus.RUNNING and managed._process:
+                    try:
+                        managed._process.kill()
+                        managed.status = ProcessStatus.KILLED
+                        managed.ended_at = time.time()
+                    except Exception:
+                        pass
+            killed = sum(
+                1 for p in self._processes.values()
+                if p.status == ProcessStatus.KILLED
+            )
+        logger.info(f"ProcessManager shutdown complete — killed {killed} processes")
+

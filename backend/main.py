@@ -35,6 +35,11 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+logger = logging.getLogger(__name__)
+
+# Module-level app state — replaces builtins hack
+_app_state = {"registry": None}
+
 
 def setup_logging(level: str = "INFO"):
     """Configure logging."""
@@ -129,8 +134,7 @@ def start_server(provider: str = "auto", api_key: str = None):
     show_banner(registry)
 
     # Store registry for the API server to pick up
-    import builtins
-    builtins._llm_registry = registry
+    _app_state["registry"] = registry
     
     # 🪖 ENGAGE ARMY DEFENSE MATRIX (Rule 4)
     try:
@@ -413,12 +417,12 @@ def run_devils_advocate(file_path: str, provider: str = "auto", api_key: str = N
 def run_socratic_tutor(topic: str, provider: str = "auto", api_key: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
-    from agents.profiles.socratic_tutor import SocraticTutor
+    from agents.profiles.expert_tutor import ExpertTutorEngine
     registry = create_provider_registry(provider, api_key)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
-    tutor = SocraticTutor(agent)
-    tutor.start_tutoring_session(topic)
+    tutor = ExpertTutorEngine(generate_fn=registry.generate_fn(), agent_controller=agent)
+    tutor.start_interactive(topic)
 
 def run_content_factory(file_path: str, provider: str = "auto", api_key: str = None):
     from core.model_providers import create_provider_registry
@@ -524,6 +528,34 @@ def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
     except KeyboardInterrupt:
         print("\n[INFO] Dream State interrupted by user.")
 
+def run_swarm_task(task: str, provider: str = "auto", api_key: str = None):
+    """Run Multi-Agent Swarm Intelligence on a complex task."""
+    from agents.profiles.swarm_intelligence import SwarmOrchestrator
+    registry = create_provider_registry(provider, api_key)
+    if not registry.active:
+        return
+    from agents.controller import AgentController
+    agent = AgentController(generate_fn=registry.generate_fn())
+    swarm = SwarmOrchestrator(generate_fn=registry.generate_fn(), agent_controller=agent)
+    swarm.start_interactive(task)
+
+def run_multimodal_analysis(file_path: str, provider: str = "auto", api_key: str = None):
+    """Analyze a file using the Multimodal Pipeline (images, PDFs, audio, code)."""
+    from brain.multimodal import MultimodalBrain
+    from pathlib import Path
+    registry = create_provider_registry(provider, api_key)
+    if not registry.active:
+        return
+    brain = MultimodalBrain(generate_fn=registry.generate_fn())
+    path = Path(file_path)
+    if not path.exists():
+        print(f"❌ File not found: {file_path}")
+        return
+    print(f"\n🧠 Analyzing: {path.name}")
+    result = brain.process(file_path)
+    print(f"Modality: {result.modality}")
+    print(f"\n{result.analysis}")
+
 def main():
     parser = argparse.ArgumentParser(
         description="Universal AI Agent — Multi-Model Provider System"
@@ -623,6 +655,18 @@ def main():
         help="Trigger the Auto-Evolution & Synthesized Consciousness Engine (Dream State)."
     )
     
+    # === Multi-Agent Swarm Intelligence ===
+    parser.add_argument(
+        "--swarm", type=str, default=None,
+        help="Deploy Multi-Agent Swarm Intelligence on a complex task."
+    )
+    
+    # === Multimodal Analysis ===
+    parser.add_argument(
+        "--analyze", type=str, default=None,
+        help="Analyze a file using the Multimodal Pipeline (images, PDFs, audio)."
+    )
+    
     parser.add_argument(
         "--log-level", type=str, default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -660,6 +704,10 @@ def main():
         run_devops_reviewer(args.devops, repo_path=args.repo_path, provider=args.provider, api_key=args.api_key)
     elif args.aesce:
         run_aesce_dream_state(provider=args.provider, api_key=args.api_key)
+    elif args.swarm:
+        run_swarm_task(args.swarm, provider=args.provider, api_key=args.api_key)
+    elif args.analyze:
+        run_multimodal_analysis(args.analyze, provider=args.provider, api_key=args.api_key)
     elif args.providers:
         list_providers()
     elif args.chat:
