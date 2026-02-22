@@ -24,9 +24,20 @@ except ImportError:
     HAS_DDGS = False
     logger.warning("duckduckgo-search not installed. Surface web search will fail.")
 
+# Army Agent Defense Link
+try:
+    from agents.justice.army import army_command
+except ImportError:
+    army_command = None
+
 
 def _scrape_clean_text(url: str, timeout: int = 10) -> str:
     """Helper to heavily scrape and strip a webpage down to pure text."""
+    
+    # 🛡️ Army Agent Network Inspection (Rule 4)
+    if army_command and not army_command.inspect_network_payload(url):
+         return "[NETWORK BLOCKED] The Army Agent has blocked this request due to malicious domain signatures."
+
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"

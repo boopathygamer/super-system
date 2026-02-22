@@ -131,6 +131,13 @@ def start_server(provider: str = "auto", api_key: str = None):
     # Store registry for the API server to pick up
     import builtins
     builtins._llm_registry = registry
+    
+    # 🪖 ENGAGE ARMY DEFENSE MATRIX (Rule 4)
+    try:
+        from agents.justice.army import army_command
+        army_command.patrol_perimeter()
+    except Exception as e:
+        logger.warning(f"Failed to boot Army Agent Defense Matrix: {e}")
 
     uvicorn.run(
         "api.server:app",
@@ -241,6 +248,16 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
             use_thinking = user_input.startswith("/think")
             if use_thinking:
                 user_input = user_input[6:].strip()
+                
+            # 🪖 Check Army Perimeter before processing input (Rule 4)
+            try:
+                from agents.justice.army import army_command
+                if not army_command.patrol_perimeter():
+                    print("\n🪖 [SYSTEM LOCKDOWN] The Army Agent has detected a system compromise.")
+                    print("Execution halted for safety.")
+                    continue
+            except Exception:
+                pass
 
             print("\n🧠 Thinking...")
             result = agent.process(

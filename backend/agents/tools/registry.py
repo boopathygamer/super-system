@@ -12,6 +12,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from config.settings import agent_config
 
+# Import the Police Agent and Court to intercept illegal actions
+try:
+    from agents.justice.police import police_dispatcher
+except ImportError:
+    police_dispatcher = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -142,6 +148,17 @@ class ToolRegistry:
                     "success": False,
                     "result": None,
                     "error": f"Tool '{tool_name}' denied by policy",
+                }
+                
+        # 🚓 The Police Agent Patrols the Registry
+        if police_dispatcher:
+            # Send the execution parameters to the Police for Rule 1 / Rule 2 inspection
+            allowed_by_police = police_dispatcher.patrol_hook(agent_name="System", tool_name=tool_name, args=kwargs)
+            if not allowed_by_police:
+                return {
+                    "success": False,
+                    "result": None,
+                    "error": f"⚖️ JUSTICE SYSTEM ALARM: The Police Force arrested tool '{tool_name}' for violating core rules."
                 }
 
         # Enforce sandbox for high-risk tools
