@@ -140,7 +140,7 @@ def _search_dark_web(query: str, max_results: int) -> List[Dict[str, str]]:
 
 @registry.register(
     name="advanced_web_search",
-    description="Search the internet, including academic (Deep Web) and Tor (Dark Web) databases. Use 'network' parameter to select the appropriate scope.",
+    description="Search the internet, including social media, academic (Deep Web) and Tor (Dark Web) databases. Use 'network' parameter to select the appropriate scope.",
     risk_level=ToolRiskLevel.HIGH,
     parameters={
         "type": "object",
@@ -151,8 +151,8 @@ def _search_dark_web(query: str, max_results: int) -> List[Dict[str, str]]:
             },
             "network": {
                 "type": "string",
-                "enum": ["surface", "deep", "dark", "all"],
-                "description": "Which network to search. 'surface' = normal news/data. 'deep' = Physics/Math/Academic papers on ArXiv. 'dark' = Tor .onion links via Ahmia. 'all' = search all three.",
+                "enum": ["surface", "deep", "dark", "social", "all"],
+                "description": "Which network to search. 'surface' = normal news/data. 'deep' = Physics/Math/Academic papers on ArXiv. 'dark' = Tor .onion links via Ahmia. 'social' = Reddit/X/Forums. 'all' = search all networks.",
                 "default": "surface"
             },
             "max_results": {
@@ -176,6 +176,27 @@ def advanced_web_search(query: str, network: str = "surface", max_results: int =
     
     aggregated_results = []
     
+    # helper for social simulation
+    def _search_social(q, max_res):
+        try:
+            with DDGS() as ddgs:
+                # Add site-specific constraints for Reddit and X/Twitter
+                res_reddit = list(ddgs.text(f"site:reddit.com {q}", max_results=max_res//2 + 1))
+                res_x = list(ddgs.text(f"site:twitter.com OR site:x.com {q}", max_results=max_res//2 + 1))
+                
+                social_res = []
+                for r in res_reddit + res_x:
+                    social_res.append({
+                        "source": "Social Media (Reddit/X)",
+                        "title": r.get("title", ""),
+                        "href": r.get("href", ""),
+                        "snippet": r.get("body", "")
+                    })
+                return social_res[:max_res]
+        except Exception as e:
+            logger.error(f"Social search failed: {e}")
+            return []
+
     # 1. Surface Web
     if network in ["surface", "all"]:
         aggregated_results.extend(_search_surface_web(query, max_results, deep_scrape))
@@ -188,6 +209,10 @@ def advanced_web_search(query: str, network: str = "surface", max_results: int =
     # 3. Dark Web
     if network in ["dark", "all"]:
         aggregated_results.extend(_search_dark_web(query, max_results))
+        
+    # 4. Social Media
+    if network in ["social", "all"]:
+        aggregated_results.extend(_search_social(query, max_results))
         
     logger.info(f"🌐 Successfully retrieved {len(aggregated_results)} total results.")
     
