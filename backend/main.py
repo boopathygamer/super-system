@@ -160,6 +160,16 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
     active = registry.active
     model_name = f"{active.name}/{active.model}" if active else "none"
 
+    # Pre-authorize device control if the user wants it in this session
+    from agents.tools.device_ops import SecurityGateway
+    print("\n🛡️ [SECURITY PROTOCOL] The agent supports Host Device Management (Process/Hardware Control).")
+    allow_device = input("   Do you want to grant Device Control permissions for this session? (y/N): ").strip().lower()
+    if allow_device in ['y', 'yes', 'true']:
+        SecurityGateway._DEVICE_CONTROL_GRANTED = True
+        print("   ✅ Device Control GRANTED.")
+    else:
+        print("   ❌ Device Control DENIED.")
+
     print(f"\n{'═' * 60}")
     print(f"  💬 Interactive Chat — Model: {model_name}")
     print("  Commands:")
