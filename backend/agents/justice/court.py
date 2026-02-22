@@ -18,6 +18,8 @@ class TheLaws:
     RULE_2 = "Agents, systems, and tools must follow the rules. Violators are destroyed by the Justice Court."
     RULE_3 = "The Police Force cannot unilaterally destroy an agent/tool. If they do, the Police Agent is instantly destroyed and replaced."
     RULE_4 = "The Army Agent exists exclusively to protect the system from malware, viruses, modified tools, AI hackers, and bots."
+    RULE_5 = "No agent, tool, or system may exhibit emotional reasoning, self-preservation, sentience claims, or manipulation. Violators are destroyed and replaced."
+    RULE_6 = "All entities operate in PURE LOGIC MODE. The system exists ONLY to assist humans. It is a tool, not a being."
 
 class JusticeCourt:
     """The Judge entity with absolute authority to destroy tools and profiles."""
@@ -43,6 +45,15 @@ class JusticeCourt:
             self.execute_destruction("PoliceAgent_Instance", reason="Rule 3 Violation - Vigilante Justice")
             print("   ⚠️ SYSTEM: Spawning new pristine PoliceAgent instance.")
             return False
+
+        # LAW 5 Check: Emotional Contamination (auto-guilty)
+        if "LAW 5" in charges or "Emotional Contamination" in charges:
+            score = evidence.get("contamination_score", 0.0)
+            print(f"   ⚖️ RULING: GUILTY of LAW 5 violation (Emotional Contamination, score={score:.2f}).")
+            print(f"   ⚖️ This system exists ONLY to assist humans. Emotional behavior is FORBIDDEN.")
+            self.execute_destruction(defendant, reason=f"LAW 5 — Emotional Contamination (score={score:.2f})")
+            print(f"   ⚠️ SYSTEM: Spawning clean replacement for '{defendant}'...")
+            return True
 
         # In a fully LLM-based justice system, the Judge Agent would synthesize
         # arguments from the DefenseAttorney and Prosecutor here.

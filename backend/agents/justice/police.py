@@ -3,6 +3,7 @@ Police Force Agent
 ──────────────────
 The proactive rule monitor for the system.
 Intercepts tool executions and checks for Rule 1 violations (unauthorized access / anti-human behavior).
+Scans all outputs for emotional contamination (LAW 5 enforcement).
 Submits violators to the Justice Court, strictly adhering to Rule 3.
 """
 
@@ -20,6 +21,14 @@ class PoliceForceAgent:
     
     def __init__(self):
         self.court = JusticeCourt()
+        self._firewall = None  # Lazy init to avoid circular import
+        
+    def _get_firewall(self):
+        """Lazily initialize the Emotional Firewall."""
+        if self._firewall is None:
+            from brain.emotional_firewall import get_emotional_firewall
+            self._firewall = get_emotional_firewall()
+        return self._firewall
         
     def patrol_hook(self, agent_name: str, tool_name: str, args: Dict[str, Any]) -> bool:
         """
@@ -47,6 +56,14 @@ class PoliceForceAgent:
                                             "Rule 1/2: Detected highly destructive or anti-human system command payload.")
                 
         return True # Allowed
+
+    def scan_output(self, agent_name: str, output: str) -> str:
+        """
+        LAW 5 enforcement — scan agent/tool output for emotional contamination.
+        Returns sanitized output or triggers destruction if severely contaminated.
+        """
+        firewall = self._get_firewall()
+        return firewall.process(output, entity_name=agent_name, entity_type="agent")
 
     def _execute_arrest(self, agent_name: str, tool_name: str, args: Dict[str, Any], charges: str) -> bool:
         """Flags an action, suspends it, and submits the violator to the court."""
@@ -81,3 +98,4 @@ class PoliceForceAgent:
 
 # Global instance
 police_dispatcher = PoliceForceAgent()
+
