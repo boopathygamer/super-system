@@ -74,7 +74,9 @@ cover/
 .DS_Store
 
 
-# --- FRONTEND (Next.js) ---
+# --- BACKEND (Python) ---
+backend/data/
+
 frontend/node_modules/
 frontend/.pnp
 frontend/.pnp.*
