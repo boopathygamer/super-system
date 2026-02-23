@@ -531,8 +531,8 @@ class SwarmOrchestrator:
     def start_interactive(self, task: str = None):
         """Run an interactive swarm session in the console."""
         print(f"\n{'='*60}")
-        print(f"  🐝 MULTI-AGENT SWARM INTELLIGENCE")
-        print(f"  Agents: Architect | Coder | Reviewer | Researcher | Security")
+        print("  🐝 MULTI-AGENT SWARM INTELLIGENCE")
+        print("  Agents: Architect | Coder | Reviewer | Researcher | Security")
         print(f"{'='*60}\n")
 
         if not task:
@@ -542,12 +542,12 @@ class SwarmOrchestrator:
                 return
 
         print(f"\n🐝 Deploying swarm on: {task[:80]}...")
-        print(f"   Decomposing task into sub-tasks...")
+        print("   Decomposing task into sub-tasks...")
 
         result = self.execute(task)
 
         print(f"\n{'='*60}")
-        print(f"  📊 SWARM RESULTS")
+        print("  📊 SWARM RESULTS")
         print(f"{'='*60}")
         print(f"  Agents deployed: {result.agents_used}")
         print(f"  Total time: {result.total_duration_ms:.0f}ms")
@@ -560,7 +560,7 @@ class SwarmOrchestrator:
                   f"confidence={ar.confidence:.0%}")
 
         print(f"{'='*60}")
-        print(f"\n🎯 MERGED SOLUTION:\n")
+        print("\n🎯 MERGED SOLUTION:\n")
         print(result.merged_output)
 
     # ──────────────────────────────────────

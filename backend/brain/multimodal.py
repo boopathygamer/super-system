@@ -215,7 +215,7 @@ class DocumentIntelligence:
         parts = [
             f"CSV: {len(data_rows)} rows × {len(headers)} columns",
             f"Headers: {', '.join(headers)}",
-            f"\nFirst 10 rows:",
+            "\nFirst 10 rows:",
         ]
         for row in data_rows[:10]:
             parts.append("  | ".join(row[:10]))
@@ -406,7 +406,7 @@ class VisionAnalyzer:
     ) -> str:
         """Fallback analysis when LLM doesn't support vision."""
         info_parts = [
-            f"Image analysis (no vision API available):",
+            "Image analysis (no vision API available):",
             f"  File: {metadata.get('filename', 'unknown')}",
             f"  Size: {metadata.get('size_bytes', 0)} bytes",
         ]
@@ -415,8 +415,8 @@ class VisionAnalyzer:
                 f"  Dimensions: {metadata['width']}x{metadata['height']}"
             )
         info_parts.append(
-            f"\nNote: Install a provider with vision support (Gemini, GPT-4) "
-            f"for full image analysis."
+            "\nNote: Install a provider with vision support (Gemini, GPT-4) "
+            "for full image analysis."
         )
         return "\n".join(info_parts)
 

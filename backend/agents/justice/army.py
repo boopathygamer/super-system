@@ -126,7 +126,7 @@ class ArmyAgent:
         for domain in _BLOCKED_DOMAINS:
             if domain in url_lower:
                 logger.warning(
-                    f"🛡️ [ARMY AGENT] BLOCKED: Malicious domain detected in URL"
+                    "🛡️ [ARMY AGENT] BLOCKED: Malicious domain detected in URL"
                 )
                 return False
         
@@ -138,7 +138,7 @@ class ArmyAgent:
             for pattern in _MALICIOUS_DOMAIN_PATTERNS:
                 if pattern.search(domain):
                     logger.warning(
-                        f"🛡️ [ARMY AGENT] BLOCKED: Suspicious domain pattern detected"
+                        "🛡️ [ARMY AGENT] BLOCKED: Suspicious domain pattern detected"
                     )
                     return False
         

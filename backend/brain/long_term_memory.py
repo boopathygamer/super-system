@@ -104,7 +104,7 @@ class EpisodicMemory:
         tags: List[str] = None,
     ) -> str:
         """Store a new conversation episode."""
-        episode_id = hashlib.md5(
+        episode_id = hashlib.sha256(
             f"{topic}{time.time()}".encode()
         ).hexdigest()[:12]
 
@@ -342,7 +342,7 @@ class ProceduralMemory:
         }
         for domain, keywords in domain_keywords.items():
             if any(kw in msg_lower for kw in keywords):
-                patterns[f"expertise_domain"] = domain
+                patterns["expertise_domain"] = domain
 
         return patterns
 
@@ -556,7 +556,7 @@ class KnowledgeGraph:
         }
 
     def _make_id(self, name: str) -> str:
-        return hashlib.md5(name.lower().encode()).hexdigest()[:10]
+        return hashlib.sha256(name.lower().encode()).hexdigest()[:10]
 
     def _enforce_limits(self):
         if len(self.entities) > self._max_entities:

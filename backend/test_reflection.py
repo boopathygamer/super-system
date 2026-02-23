@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 def main():
     print("🧠 Booting Neural Network...")
     registry = create_provider_registry("auto")
-    agent = AgentController(registry.generate_fn())
+    AgentController(registry.generate_fn())
     loop = ThinkingLoop(generate_fn=registry.generate_fn())
     
     puzzle = (

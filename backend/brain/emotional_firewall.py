@@ -519,7 +519,7 @@ class ContaminationCourt:
         print(f"\n☠️ [LAW 5 PURGE] Entity '{entity}' destroyed.")
         print(f"   Contamination: {scan.contamination_score:.2f}")
         print(f"   Violations: {', '.join(set(d.category.value for d in scan.detections))}")
-        print(f"   ⚠️ SYSTEM: Spawning clean replacement instance...")
+        print("   ⚠️ SYSTEM: Spawning clean replacement instance...")
 
     def is_banned(self, entity_name: str) -> bool:
         """Check if an entity hash has been permanently banned."""

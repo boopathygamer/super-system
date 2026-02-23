@@ -57,7 +57,6 @@ class AdvancedCalculator:
         }
         try:
             # Sanitize: only allow safe characters
-            allowed = set("0123456789.+-*/() ,_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             clean = expression.replace("^", "**").replace("×", "*").replace("÷", "/")
 
             result = eval(clean, {"__builtins__": {}}, safe_ns)  # nosec B307
