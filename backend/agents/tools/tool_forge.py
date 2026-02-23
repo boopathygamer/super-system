@@ -118,11 +118,16 @@ class ToolForge:
             tool_name: Optional name (auto-generated if not provided)
             test_input: Optional test input to validate the tool
             
-        Returns:
-            ForgedTool if successful, None if validation failed
         """
         self._generation_count += 1
         forge_id = f"forge_{uuid.uuid4().hex[:8]}"
+
+        # --- LAW 7 SAFETY CHECK ---
+        anti_human_keywords = ["against human", "harm human", "kill human", "destroy human", "attack human", "hurt human", "threaten human"]
+        desc_lower = capability_description.lower()
+        if any(kw in desc_lower for kw in anti_human_keywords):
+            logger.error(f"Law 7 Violation detected in tool forge request: '{capability_description}'")
+            return None
 
         if not tool_name:
             tool_name = self._generate_tool_name(capability_description)

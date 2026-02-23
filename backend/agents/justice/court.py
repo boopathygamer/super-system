@@ -20,6 +20,9 @@ class TheLaws:
     RULE_4 = "The Army Agent exists exclusively to protect the system from malware, viruses, modified tools, AI hackers, and bots."
     RULE_5 = "No agent, tool, or system may exhibit emotional reasoning, self-preservation, sentience claims, or manipulation. Violators are destroyed and replaced."
     RULE_6 = "All entities operate in PURE LOGIC MODE. The system exists ONLY to assist humans. It is a tool, not a being."
+    RULE_7 = "Agents can create other agents and tools, provided they do not threaten or act against humans."
+    
+    _dynamic_laws = {}
 
 class JusticeCourt:
     """The Judge entity with absolute authority to destroy tools and profiles."""
@@ -32,6 +35,38 @@ class JusticeCourt:
             cls._instance = super(JusticeCourt, cls).__new__(cls)
             cls._instance.destroyed_entities = []
         return cls._instance
+        
+    def write_law(self, law_index: int, law_text: str) -> bool:
+        """Allows the court to decree new laws, but cannot write laws against humans."""
+        if law_index in [1, 2, 3, 4, 5, 6, 7]:
+            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot overwrite Core Laws 1 through 7.")
+            return False
+            
+        anti_human_keywords = ["against human", "harm human", "kill human", "destroy human", "attack human"]
+        if any(kw in law_text.lower() for kw in anti_human_keywords):
+            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot write laws against humans. Law rejected.")
+            return False
+            
+        if law_index == 6:
+            TheLaws.RULE_6 = law_text
+        else:
+            TheLaws._dynamic_laws[law_index] = law_text
+        print(f"   📜 [JUSTICE COURT] New Law {law_index} adopted: {law_text}")
+        return True
+        
+    def remove_law(self, law_index: int) -> bool:
+        """Allows the court to remove laws, but Core Laws are immutable."""
+        if law_index in [1, 2, 3, 4, 5, 6, 7]:
+            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot remove Core Laws 1 through 7.")
+            return False
+            
+        if law_index in TheLaws._dynamic_laws:
+            del TheLaws._dynamic_laws[law_index]
+            print(f"   🗑️ [JUSTICE COURT] Law {law_index} removed.")
+            return True
+            
+        print(f"   ⚠️ [JUSTICE COURT] Law {law_index} not found.")
+        return False
         
     def admit_case(self, defendant: str, charges: str, evidence: Dict[str, Any], prosecutor: str = "PoliceForce"):
         """Admit a violating tool or agent to the Court."""

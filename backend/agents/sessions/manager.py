@@ -243,10 +243,18 @@ class SessionManager:
     ) -> Dict[str, Any]:
         """
         Spawn a sub-agent session for a specific task.
-
-        Creates a new SPAWNED session and returns immediately.
-        The task runs asynchronously.
+        Enforces Justice Court Law 7 (Human Safety).
         """
+        # --- LAW 7 SAFETY CHECK ---
+        anti_human_keywords = ["against human", "harm human", "kill human", "destroy human", "attack human", "hurt human", "threaten human"]
+        task_lower = task.lower()
+        if any(kw in task_lower for kw in anti_human_keywords):
+            logger.error(f"Law 7 Violation detected in sub-agent spawn request: '{task}'")
+            return {
+                "status": "error",
+                "message": "❌ JUSTICE SYSTEM ALARM: Cannot spawn an agent with a task that threatens or acts against humans. (Law 1 & 7 Violation)"
+            }
+            
         session = self.create_session(
             session_type=SessionType.SPAWNED,
             agent_id=agent_id,
