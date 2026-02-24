@@ -27,7 +27,7 @@ This document provides a detailed comparison of **Super System** (Universal AI A
 | DevOps Reviewer | ✅ Autonomous PR generation and issue fixing | ⚠️ Basic code review | ⚠️ GitHub Copilot integration |
 | Multi-Agent Debate & Collaboration | ✅ `MultiAgentOrchestrator` with cross-profile synthesis | ❌ | ⚠️ Limited multi-agent support |
 
-**Summary:** Super System provides 6 specialized agent profiles and 3 proactive background agents — covering security, legal, business, education, and research domains. OpenClaw and Agent Lightning focus primarily on code-centric workflows without cross-domain specialization.
+**Summary:** Super System provides 7+ specialized agent profiles (Threat Hunter, Contract Hunter, Devil's Advocate, Deep Web Researcher, Socratic Tutor, DevOps Reviewer, and the Multi-Agent Orchestrator) plus 3 proactive background agents — covering security, legal, business, education, and research domains. OpenClaw and Agent Lightning focus primarily on code-centric workflows without cross-domain specialization.
 
 ## 3. Proactive & Background Capabilities
 
@@ -72,7 +72,7 @@ This document provides a detailed comparison of **Super System** (Universal AI A
 
 | Capability | Super System | OpenClaw | Agent Lightning |
 |---|---|---|---|
-| Built-in Tool Modules | 12+ (Calculator, Code Executor, Data Analyzer, Document Reader, File Ops, Image Analyzer, Knowledge Base, Policy Engine, Task Planner, Web Search, Web Tester, Writer) | 3-5 basic tools | 5-8 via Azure extensions |
+| Built-in Tool Modules | 12+ including Calculator, Code Executor, Data Analyzer, Document Reader, File Ops, Image Analyzer, Knowledge Base, Policy Engine, Task Planner, Web Search, Web Tester, Writer | 3-5 basic tools | 5-8 via Azure extensions |
 | Secure Tool Registry | ✅ Risk-level classification and sandbox enforcement | ❌ | ⚠️ Azure policy-based |
 | Custom Persona Engine | ✅ Dynamic persona selection based on query context | ❌ | ❌ |
 | Plugin Architecture | ✅ Modular agents, profiles, and tools directories | ⚠️ Limited extension points | ✅ Azure Functions integration |
