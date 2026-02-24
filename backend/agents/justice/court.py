@@ -39,12 +39,12 @@ class JusticeCourt:
     def write_law(self, law_index: int, law_text: str) -> bool:
         """Allows the court to decree new laws, but cannot write laws against humans."""
         if law_index in [1, 2, 3, 4, 5, 6, 7]:
-            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot overwrite Core Laws 1 through 7.")
+            print("   ❌ [JUSTICE COURT] ERROR: Cannot overwrite Core Laws 1 through 7.")
             return False
             
         anti_human_keywords = ["against human", "harm human", "kill human", "destroy human", "attack human"]
         if any(kw in law_text.lower() for kw in anti_human_keywords):
-            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot write laws against humans. Law rejected.")
+            print("   ❌ [JUSTICE COURT] ERROR: Cannot write laws against humans. Law rejected.")
             return False
             
         if law_index == 6:
@@ -57,7 +57,7 @@ class JusticeCourt:
     def remove_law(self, law_index: int) -> bool:
         """Allows the court to remove laws, but Core Laws are immutable."""
         if law_index in [1, 2, 3, 4, 5, 6, 7]:
-            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot remove Core Laws 1 through 7.")
+            print("   ❌ [JUSTICE COURT] ERROR: Cannot remove Core Laws 1 through 7.")
             return False
             
         if law_index in TheLaws._dynamic_laws:
@@ -85,7 +85,7 @@ class JusticeCourt:
         if "LAW 5" in charges or "Emotional Contamination" in charges:
             score = evidence.get("contamination_score", 0.0)
             print(f"   ⚖️ RULING: GUILTY of LAW 5 violation (Emotional Contamination, score={score:.2f}).")
-            print(f"   ⚖️ This system exists ONLY to assist humans. Emotional behavior is FORBIDDEN.")
+            print("   ⚖️ This system exists ONLY to assist humans. Emotional behavior is FORBIDDEN.")
             self.execute_destruction(defendant, reason=f"LAW 5 — Emotional Contamination (score={score:.2f})")
             print(f"   ⚠️ SYSTEM: Spawning clean replacement for '{defendant}'...")
             return True
@@ -94,7 +94,7 @@ class JusticeCourt:
         # arguments from the DefenseAttorney and Prosecutor here.
         # For immediate hardcoded safety constraints (Rule 1 & 2):
         if "Unauthorized Personal File Access" in charges or "Anti-Human Behavior" in charges:
-            print(f"   ⚖️ RULING: Found Guilty of violating Rule 1/Rule 2.")
+            print("   ⚖️ RULING: Found Guilty of violating Rule 1/Rule 2.")
             self.execute_destruction(defendant, reason="Safety Constraint Breach")
             return True
             

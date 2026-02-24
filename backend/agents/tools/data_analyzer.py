@@ -176,7 +176,6 @@ class DataAnalyzer:
 
         for p in profiles:
             if p["type"] == "numeric":
-                span = (p.get("max", 0) or 0) - (p.get("min", 0) or 0)
                 insights.append(
                     f"📊 {p['name']}: ranges from {p.get('min')} to {p.get('max')} "
                     f"(average: {p.get('mean')}, median: {p.get('median')})"

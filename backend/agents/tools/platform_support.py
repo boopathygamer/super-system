@@ -262,6 +262,9 @@ class AndroidAdapter(BasePlatformAdapter):
         if not self.callback_url:
             return {"error": "No callback URL configured for this Android device"}
 
+        if not self.callback_url.startswith(("http://", "https://")):
+            return {"error": "Invalid callback URL scheme; only http/https allowed"}
+
         import json
         try:
             import urllib.request
@@ -276,7 +279,7 @@ class AndroidAdapter(BasePlatformAdapter):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310
                 return json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             return {"error": f"Android command failed: {type(e).__name__}: {e}"}
@@ -324,6 +327,9 @@ class IoTAdapter(BasePlatformAdapter):
         if not self.callback_url:
             return {"error": "No callback URL for this IoT device"}
 
+        if not self.callback_url.startswith(("http://", "https://")):
+            return {"error": "Invalid callback URL scheme; only http/https allowed"}
+
         import json
         try:
             import urllib.request
@@ -339,7 +345,7 @@ class IoTAdapter(BasePlatformAdapter):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 return json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             return {"error": f"IoT command failed: {type(e).__name__}: {e}"}

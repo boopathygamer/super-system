@@ -204,7 +204,7 @@ def generate_presentation_from_folder(folder_path: str, output_path: str, presen
         
         return {
             "success": True,
-            "message": f"Successfully analyzed folder and generated presentation.",
+            "message": "Successfully analyzed folder and generated presentation.",
             "output_path": output_path,
             "slides_generated": len(slides_structure),
             "title": presentation_title

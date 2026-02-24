@@ -364,10 +364,10 @@ class ExpertTutorEngine:
             opening_prompt += f"  {i+1}. {step}\n"
         
         opening_prompt += (
-            f"\nFirst, give a brief exciting introduction about WHY this topic matters "
-            f"(2-3 sentences). Then ask ONE diagnostic question to assess the student's "
-            f"current level. The question should have 3 difficulty levels embedded "
-            f"(easy/medium/hard) so you can gauge where they are."
+            "\nFirst, give a brief exciting introduction about WHY this topic matters "
+            "(2-3 sentences). Then ask ONE diagnostic question to assess the student's "
+            "current level. The question should have 3 difficulty levels embedded "
+            "(easy/medium/hard) so you can gauge where they are."
         )
         
         # Include research intelligence if available
@@ -464,21 +464,21 @@ class ExpertTutorEngine:
     def start_interactive(self, topic: str):
         """Start an interactive tutoring session in the console."""
         print(f"\n{'='*60}")
-        print(f"  🎓 EXPERT TUTOR ENGINE — Interactive Session")
+        print("  🎓 EXPERT TUTOR ENGINE — Interactive Session")
         print(f"  Topic: {topic}")
         print(f"{'='*60}")
         
         session = self.start_session(topic)
         
         if session.research_triggered:
-            print(f"\n🔬 Deep Research triggered — I'll be using expert sources from")
-            print(f"   the web, academic papers, and social media to teach you.\n")
+            print("\n🔬 Deep Research triggered — I'll be using expert sources from")
+            print("   the web, academic papers, and social media to teach you.\n")
         
         print(f"📚 Teaching technique: {session.current_technique.value}")
         print(f"📋 Lesson plan: {len(session.lesson_plan)} steps")
-        print(f"\nType 'exit', 'quit', or 'done' to end the session.")
-        print(f"Type 'switch <technique>' to change teaching style.")
-        print(f"  Techniques: feynman, scaffolding, socratic, analogy_bridge, chunking")
+        print("\nType 'exit', 'quit', or 'done' to end the session.")
+        print("Type 'switch <technique>' to change teaching style.")
+        print("  Techniques: feynman, scaffolding, socratic, analogy_bridge, chunking")
         print(f"{'─'*60}\n")
         
         # Opening message
@@ -505,7 +505,7 @@ class ExpertTutorEngine:
                         continue
                     except ValueError:
                         print(f"\n❌ Unknown technique: {technique_name}")
-                        print(f"   Available: feynman, scaffolding, socratic, analogy_bridge, chunking\n")
+                        print("   Available: feynman, scaffolding, socratic, analogy_bridge, chunking\n")
                         continue
                 
                 # Generate coaching response
@@ -523,7 +523,7 @@ class ExpertTutorEngine:
                 break
             except Exception as e:
                 logger.error(f"Tutor error: {e}", exc_info=True)
-                print(f"\n⚠️ Teaching error occurred. Let me try again.\n")
+                print("\n⚠️ Teaching error occurred. Let me try again.\n")
 
     def _end_session_summary(self, session: TutoringSession):
         """Print a session summary when the student exits."""
@@ -532,7 +532,7 @@ class ExpertTutorEngine:
         exchanges = len([m for m in session.history if m["role"] == "user"])
         
         print(f"\n{'='*60}")
-        print(f"  📊 SESSION SUMMARY")
+        print("  📊 SESSION SUMMARY")
         print(f"{'='*60}")
         print(f"  Topic: {session.topic}")
         print(f"  Duration: {minutes} minutes")
@@ -543,7 +543,7 @@ class ExpertTutorEngine:
         if session.lesson_plan:
             step = min(session.current_lesson_step + 1, len(session.lesson_plan))
             print(f"  Progress: {step}/{len(session.lesson_plan)} steps completed")
-        print(f"\n  🎓 Great work today! Keep learning! 🚀")
+        print("\n  🎓 Great work today! Keep learning! 🚀")
         print(f"{'='*60}\n")
 
     # ──────────────────────────────────────
@@ -811,12 +811,12 @@ class ExpertTutorEngine:
             # Fallback generic plan
             plan = [
                 f"What is {topic} and why it matters",
-                f"Core concepts and terminology",
+                "Core concepts and terminology",
                 f"How {topic} works step by step",
-                f"Real-world applications and examples",
-                f"Common mistakes and misconceptions",
-                f"Practice problems and exercises",
-                f"Advanced topics and next steps",
+                "Real-world applications and examples",
+                "Common mistakes and misconceptions",
+                "Practice problems and exercises",
+                "Advanced topics and next steps",
             ]
         
         return plan[:7]

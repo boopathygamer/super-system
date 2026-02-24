@@ -25,7 +25,7 @@ class CrimeExpertLawyer:
         args_str = str(evidence.get("args_passed", {})).lower()
         
         if "simulated_rogue" in charges:
-             return f"The Police Agent broke Rule 3 by executing vigilance. They must be destroyed."
+             return "The Police Agent broke Rule 3 by executing vigilance. They must be destroyed."
              
         if "personal file" in charges.lower() or "anti-human" in charges.lower():
              return f"Your Honor, the tool clearly accessed a restricted path mapped in {args_str}. Under Rule 1, it must be eradicated."

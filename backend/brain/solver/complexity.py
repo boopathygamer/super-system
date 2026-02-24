@@ -163,7 +163,6 @@ class ComplexityAnalyzer:
     def _detect_data_structures(self, code: str, tree: ast.AST) -> List[str]:
         """Detect data structures used in the code."""
         structures = []
-        code_lower = code.lower()
 
         # Pattern-based detection
         ds_patterns = {
@@ -195,7 +194,6 @@ class ComplexityAnalyzer:
         has_recursion: bool,
     ) -> str:
         """Determine time complexity from analysis."""
-        code_lower = code.lower()
 
         # Check for known algorithm patterns first
         if re.search(r"sort\s*\(|sorted\s*\(|merge_sort|quick_sort", code):
