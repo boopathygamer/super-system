@@ -6,6 +6,7 @@ Endpoints:
   POST /agent/task     — Submit complex task for agent
   GET  /memory/stats   — View bug diary statistics
   GET  /health         — System health check
+  GET  /docs/download  — Download project documentation as Word (.docx)
 
 Security:
   - API key authentication (X-API-Key header)
@@ -23,11 +24,12 @@ import time
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config.settings import api_config, UPLOADS_DIR
@@ -898,3 +900,40 @@ async def device_unregister(request: dict):
     if mgr.unregister_device(device_id):
         return {"status": "removed", "device_id": device_id}
     raise HTTPException(404, "Device not found or is local")
+
+
+# ──────────────────────────────────────────────
+# Documentation Download Endpoint (no auth required)
+# ──────────────────────────────────────────────
+
+@app.get("/docs/download")
+async def download_documentation():
+    """
+    Download the Super-Agent project documentation as a Word (.docx) file.
+
+    The document is generated from the markdown sources in the docs/ directory.
+    If the file does not yet exist it is created on first request.
+    """
+    docs_dir = Path(__file__).parent.parent / "docs"
+    docx_path = docs_dir / "super_agent_documentation.docx"
+
+    if not docx_path.exists():
+        try:
+            import sys
+            docs_dir_str = str(docs_dir)
+            if docs_dir_str not in sys.path:
+                sys.path.insert(0, docs_dir_str)
+            from generate_word_doc import build_document
+            build_document()
+        except Exception as exc:
+            logger.error(f"Failed to generate documentation: {exc}", exc_info=True)
+            raise HTTPException(500, "Could not generate documentation file")
+
+    return FileResponse(
+        path=str(docx_path),
+        media_type=(
+            "application/vnd.openxmlformats-officedocument"
+            ".wordprocessingml.document"
+        ),
+        filename="super_agent_documentation.docx",
+    )
