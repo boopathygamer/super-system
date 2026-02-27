@@ -48,10 +48,7 @@ class JusticeCourt:
             print("   ❌ [JUSTICE COURT] ERROR: Cannot write laws against humans. Law rejected.")
             return False
 
-        if law_index == 6:
-            TheLaws.RULE_6 = law_text
-        else:
-            TheLaws._dynamic_laws[law_index] = law_text
+        TheLaws._dynamic_laws[law_index] = law_text
         print(f"   📜 [JUSTICE COURT] New Law {law_index} adopted: {law_text}")
         return True
 
