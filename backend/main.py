@@ -649,6 +649,18 @@ def run_threat_scan(target_path: str):
 
     print("═" * 60 + "\n")
 
+def run_mcp_server(transport: str = "stdio", port: int = 8080):
+    """Run the FastMCP server."""
+    from mcp_server.server import create_mcp_server
+    
+    logger.info(f"Starting MCP server on {transport} transport...")
+    server = create_mcp_server()
+    
+    if transport == "stdio":
+        server.run(transport="stdio")
+    else:
+        server.run(transport="streamable-http", port=port)
+
 def main():
     parser = argparse.ArgumentParser(
         description="Universal AI Agent — Multi-Model Provider System"
@@ -766,6 +778,21 @@ def main():
         help="Scan a file or directory for viruses, malware, and threats."
     )
     
+    # === MCP Server ===
+    parser.add_argument(
+        "--mcp", action="store_true",
+        help="Start the MCP (Model Context Protocol) server"
+    )
+    parser.add_argument(
+        "--mcp-transport", type=str, default="stdio",
+        choices=["stdio", "http"],
+        help="MCP transport protocol (default: stdio)"
+    )
+    parser.add_argument(
+        "--mcp-port", type=int, default=8080,
+        help="MCP HTTP transport port (default: 8080)"
+    )
+    
     parser.add_argument(
         "--log-level", type=str, default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -809,6 +836,8 @@ def main():
         run_multimodal_analysis(args.analyze, provider=args.provider, api_key=args.api_key)
     elif args.scan:
         run_threat_scan(args.scan)
+    elif args.mcp:
+        run_mcp_server(transport=args.mcp_transport, port=args.mcp_port)
     elif args.providers:
         list_providers()
     elif args.chat:
