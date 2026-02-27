@@ -28,7 +28,24 @@ from brain.credit_assignment import CreditAssignmentEngine, CreditReport
 from brain.prompt_evolver import PromptEvolver
 from brain.epistemic_checker import EpistemicChecker
 
+# Auto-Gap Detection: optional ToolForge integration
+try:
+    from agents.tools.tool_forge import ToolForge
+except ImportError:
+    ToolForge = None
+
 logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────
+# Auto-Gap Detection Constants
+# ──────────────────────────────────────────────
+MAX_AUTO_FORGE_ATTEMPTS = 2
+TOOL_GAP_KEYWORDS = [
+    "insufficient tools", "no tool available", "no suitable tool",
+    "missing capability", "tool not found", "cannot find tool",
+    "no tool for", "lack a capability", "unable to execute",
+    "no matching tool", "tool does not exist",
+]
 
 
 @dataclass
@@ -116,6 +133,7 @@ class ThinkingLoop:
         credit_engine: Optional[CreditAssignmentEngine] = None,
         prompt_evolver: Optional[PromptEvolver] = None,
         expert_reflection: Optional[ExpertReflectionEngine] = None,
+        tool_forge=None,
         config=None,
     ):
         self.generate_fn = generate_fn
@@ -142,6 +160,11 @@ class ThinkingLoop:
         
         # Phase 12: Epistemic Fact Checking
         self.epistemic_checker = EpistemicChecker(generate_fn)
+
+        # Auto-Gap Detection: ToolForge integration
+        self.tool_forge = tool_forge
+        self._auto_forge_attempts: int = 0
+        self._auto_forge_stats = {"attempts": 0, "successes": 0, "failures": 0}
 
         # Learning counters
         self._success_count: int = 0
@@ -170,6 +193,9 @@ class ThinkingLoop:
         """
         result = ThinkingResult()
         start_time = time.time()
+
+        # Reset auto-forge counter for this task
+        self._auto_forge_attempts = 0
 
         # Initialize trajectory trace for this episode
         trajectory = TrajectoryTrace(problem=problem)
@@ -373,6 +399,58 @@ class ThinkingLoop:
                     failed_candidate=step.candidate,
                     verifier_feedback=str_feedback
                 )
+
+                # ── AUTO-GAP DETECTION ──
+                # Check if failure is due to missing tools/capabilities
+                failure_text = f"{root_cause} {step.candidate}".lower()
+                is_tool_gap = any(kw in failure_text for kw in TOOL_GAP_KEYWORDS)
+
+                if (is_tool_gap
+                        and self.tool_forge is not None
+                        and self._auto_forge_attempts < MAX_AUTO_FORGE_ATTEMPTS):
+                    self._auto_forge_attempts += 1
+                    self._auto_forge_stats["attempts"] += 1
+                    logger.info(
+                        f"🔧 Auto-Gap Detection: Capability gap detected "
+                        f"(attempt {self._auto_forge_attempts}/{MAX_AUTO_FORGE_ATTEMPTS})"
+                    )
+
+                    # Extract capability description from the root cause
+                    forge_desc = (
+                        f"Tool needed for: {problem[:200]}. "
+                        f"Root cause of failure: {root_cause[:200]}"
+                    )
+
+                    try:
+                        forged = self.tool_forge.forge_tool(
+                            capability_description=forge_desc,
+                        )
+                        if forged and forged.is_active:
+                            self._auto_forge_stats["successes"] += 1
+                            logger.info(
+                                f"✅ Auto-Forge SUCCESS: Created tool '{forged.name}' "
+                                f"— retrying task with new capability"
+                            )
+                            step.action_taken = "auto_forge_success"
+                            # The next iteration will have access to the new tool
+                        else:
+                            self._auto_forge_stats["failures"] += 1
+                            logger.warning(
+                                "❌ Auto-Forge FAILED: Could not create needed tool"
+                            )
+                            # Store limitation in Bug Diary
+                            self.memory.store_failure(FailureTuple(
+                                task=problem,
+                                solution="auto_forge_attempt",
+                                action="tool_forge",
+                                observation="Tool forge failed to create needed capability",
+                                root_cause=forge_desc[:300],
+                                category="auto_forge_failure",
+                                severity=0.8,
+                            ))
+                    except Exception as e:
+                        self._auto_forge_stats["failures"] += 1
+                        logger.error(f"Auto-Forge ERROR: {e}")
 
                 # LEARN: Store failure and update
                 failure = FailureTuple(

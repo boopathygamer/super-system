@@ -65,6 +65,10 @@ from agents.persona import PersonaEngine
 from brain.advanced_reasoning import AdvancedReasoner
 from agents.response_formatter import ResponseFormatter
 
+# ── Agent Forge + Tool Forge ──
+from agents.agent_forge import AgentForge
+from agents.tools.tool_forge import ToolForge
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,9 +122,18 @@ class AgentController:
         # ── Original Sub-modules ──
         self.compiler = TaskCompiler(generate_fn)
         self.generator = CandidateGenerator(generate_fn)
+
+        # ── Tool Forge + Agent Forge ──
+        self.tool_forge = ToolForge(generate_fn=generate_fn)
+        self.agent_forge = AgentForge(
+            generate_fn=generate_fn,
+            tool_registry=self.tools,
+        )
+
         self.thinking_loop = ThinkingLoop(
             generate_fn=generate_fn,
             memory=self.memory,
+            tool_forge=self.tool_forge,
         )
 
         # ── New Subsystem 1: Tool Policy Engine ──
@@ -706,6 +719,9 @@ class AgentController:
             "policy_summary": self.policy_engine.get_policy_summary(
                 PolicyContext(agent_id=self.agent_id)
             ),
+            "agent_forge": self.agent_forge.get_stats(),
+            "tool_forge": self.tool_forge.get_stats(),
+            "auto_gap_detection": self.thinking_loop._auto_forge_stats,
         }
 
     def reset_conversation(self):

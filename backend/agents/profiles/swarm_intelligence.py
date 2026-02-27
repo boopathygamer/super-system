@@ -44,6 +44,7 @@ class AgentRole(Enum):
     RESEARCHER = "researcher"
     SECURITY = "security"
     ANALYST = "analyst"
+    DYNAMIC = "dynamic"  # For agent-forge-created roles
 
 
 @dataclass
@@ -189,13 +190,19 @@ class SwarmOrchestrator:
         self,
         generate_fn: Callable,
         agent_controller=None,
+        agent_forge=None,
         max_agents: int = 4,
         timeout_per_agent: int = 120,
     ):
         self.generate_fn = generate_fn
         self.agent = agent_controller
+        self.agent_forge = agent_forge
         self.max_agents = max_agents
         self.timeout = timeout_per_agent
+
+        # Dynamic roles created by Agent Forge
+        self._dynamic_roles: Dict[str, Dict[str, Any]] = {}
+
         logger.info(f"🐝 SwarmOrchestrator initialized (max_agents={max_agents})")
 
     # ──────────────────────────────────────
@@ -309,6 +316,25 @@ class SwarmOrchestrator:
                     roles.append(r)
 
         return roles[:self.max_agents]
+
+    def register_dynamic_role(
+        self, name: str, system_prompt: str, keywords: List[str] = None
+    ):
+        """
+        Register a dynamically forged agent role in the swarm.
+
+        Args:
+            name: Role identifier
+            system_prompt: The agent's system prompt
+            keywords: Keywords that trigger this role
+        """
+        self._dynamic_roles[name] = {
+            "system_prompt": system_prompt,
+            "keywords": keywords or [],
+        }
+        # Also register the system prompt so _run_single_agent can use it
+        _ROLE_SYSTEM_PROMPTS[AgentRole.DYNAMIC] = system_prompt
+        logger.info(f"🔨 Dynamic role '{name}' registered in swarm")
 
     def _create_sub_task_prompt(self, task: str, role: AgentRole) -> str:
         """Create a role-specific sub-task prompt."""
