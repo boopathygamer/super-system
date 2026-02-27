@@ -134,6 +134,15 @@ class ProviderConfig:
 
 
 @dataclass
+class ThreatScanConfig:
+    """Threat Scanner configuration."""
+    quarantine_dir: str = str(DATA_DIR / "threat_quarantine")
+    max_file_size_mb: int = 100
+    entropy_threshold: float = 7.2
+    auto_scan_on_file_ops: bool = True
+
+
+@dataclass
 class APIConfig:
     """API server configuration."""
     host: str = os.getenv("LLM_API_HOST", "127.0.0.1")
@@ -150,4 +159,5 @@ agent_config = AgentConfig()
 provider_config = ProviderConfig()
 api_config = APIConfig()
 brain_config = BrainConfig()
+threat_config = ThreatScanConfig()
 

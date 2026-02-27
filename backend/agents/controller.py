@@ -57,6 +57,7 @@ from agents.skills.registry import SkillsRegistry
 from agents.prompts.templates import AGENT_SYSTEM_PROMPT, TOOL_USE_PROMPT
 from core.streaming import StreamProcessor, StreamConfig, StreamEventType
 from agents.safety import ContentFilter, PIIGuard, EthicsEngine
+from agents.safety.threat_scanner import ThreatScanner
 
 # ── Universal Agent Subsystems ──
 from agents.experts.router import DomainRouter
@@ -200,10 +201,24 @@ class AgentController:
         # Conversation history (still kept for backward compatibility)
         self.conversation: List[dict] = []
 
-        # ── Safety Layer: Content Filter + PII Guard + Ethics ──
+        # ── Safety Layer: Content Filter + PII Guard + Ethics + ThreatScanner ──
         self.content_filter = ContentFilter()
         self.pii_guard = PIIGuard()
         self.ethics_engine = EthicsEngine()
+
+        # ── Threat Scanner: Auto-scan files/URLs for viruses/malware ──
+        try:
+            from config.settings import threat_config
+            self.threat_scanner = ThreatScanner(
+                quarantine_dir=threat_config.quarantine_dir,
+                entropy_threshold=threat_config.entropy_threshold,
+                max_file_size_mb=threat_config.max_file_size_mb,
+            )
+            self._threat_auto_scan = threat_config.auto_scan_on_file_ops
+        except Exception as e:
+            logger.warning(f"ThreatScanner init failed: {e}")
+            self.threat_scanner = ThreatScanner()
+            self._threat_auto_scan = True
 
         # ── Universal Agent Subsystems ──
         self.domain_router = DomainRouter()
@@ -533,6 +548,12 @@ class AgentController:
                     "loop_warning": loop_check.message if loop_check else None,
                 })
 
+                # ── THREAT SCAN: Auto-scan after file/URL operations ──
+                if self._threat_auto_scan and self.threat_scanner:
+                    threat_alert = self._handle_threat_scan(tool_name, args, result)
+                    if threat_alert:
+                        results.append(threat_alert)
+
                 # Persist tool call to session
                 if session_id:
                     self.session_manager.add_message(
@@ -649,6 +670,71 @@ class AgentController:
             if count >= agent_config.loop_warning_threshold:
                 warnings.append(f"Tool '{tool}' called {count}x (possible loop)")
         return warnings
+
+    def _handle_threat_scan(
+        self,
+        tool_name: str,
+        args: dict,
+        result: dict,
+    ) -> Optional[dict]:
+        """
+        Auto-scan files/URLs after tool execution for threats.
+
+        Triggers on file operations (read_file, write_file) and URL tools.
+        If a threat is detected, returns an alert dict to inject into results.
+        """
+        scan_target = None
+        scan_type = None
+
+        # Detect file path from tool args
+        file_tools = {"read_file", "write_file", "list_directory"}
+        url_tools = {"web_search", "fetch_url"}
+
+        if tool_name in file_tools:
+            scan_target = args.get("file_path") or args.get("dir_path")
+            scan_type = "file"
+        elif tool_name in url_tools:
+            scan_target = args.get("url") or args.get("query")
+            scan_type = "url"
+
+        if not scan_target:
+            return None
+
+        try:
+            if scan_type == "file":
+                from pathlib import Path
+                if Path(scan_target).is_file():
+                    report = self.threat_scanner.scan_file(scan_target)
+                else:
+                    return None
+            elif scan_type == "url":
+                report = self.threat_scanner.scan_url(scan_target)
+            else:
+                return None
+
+            if report.is_threat:
+                logger.warning(
+                    f"🚨 THREAT DETECTED after {tool_name}: "
+                    f"{report.threat_type.value if report.threat_type else 'unknown'} "
+                    f"(confidence: {report.confidence:.1%})"
+                )
+                return {
+                    "tool": "threat_scanner_auto",
+                    "args": {"target": scan_target, "triggered_by": tool_name},
+                    "result": {
+                        "alert": report.summary(),
+                        "scan_id": report.scan_id,
+                        "threat_type": report.threat_type.value if report.threat_type else None,
+                        "severity": report.severity.value if report.severity else None,
+                        "confidence": report.confidence,
+                        "recommended_action": report.recommended_action.value,
+                        "detailed_report": report.detailed_report(),
+                    },
+                }
+        except Exception as e:
+            logger.debug(f"Threat auto-scan skipped for {scan_target}: {e}")
+
+        return None
 
     # ──────────────────────────────────────
     # Process Manager Interface

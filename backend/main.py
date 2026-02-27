@@ -556,6 +556,99 @@ def run_multimodal_analysis(file_path: str, provider: str = "auto", api_key: str
     print(f"Modality: {result.modality}")
     print(f"\n{result.analysis}")
 
+
+def run_threat_scan(target_path: str):
+    """Scan a file or directory for threats and offer remediation."""
+    from pathlib import Path
+    from agents.safety.threat_scanner import ThreatScanner
+
+    try:
+        from config.settings import threat_config
+        scanner = ThreatScanner(
+            quarantine_dir=threat_config.quarantine_dir,
+            entropy_threshold=threat_config.entropy_threshold,
+            max_file_size_mb=threat_config.max_file_size_mb,
+        )
+    except Exception:
+        scanner = ThreatScanner()
+
+    path = Path(target_path).resolve()
+    if not path.exists():
+        print(f"❌ Path not found: {target_path}")
+        return
+
+    # Collect files to scan
+    files = [path] if path.is_file() else list(path.rglob("*"))
+    files = [f for f in files if f.is_file()]
+
+    print(f"\n🛡️  Threat Scanner — Scanning {len(files)} file(s)...")
+    print("═" * 60)
+
+    threats = []
+    for i, file in enumerate(files, 1):
+        print(f"  [{i}/{len(files)}] Scanning: {file.name}...", end=" ")
+        report = scanner.scan_file(str(file))
+        if report.is_threat:
+            sev = report.severity
+            emoji = sev.emoji if sev else "⚠️"
+            print(f"{emoji} THREAT — {report.threat_type.value.upper() if report.threat_type else 'UNKNOWN'}")
+            threats.append(report)
+        else:
+            print("✅ Clean")
+
+    print("\n" + "═" * 60)
+
+    if not threats:
+        print("  ✅ ALL FILES CLEAN — No threats detected.")
+        print(f"  📊 Scanned: {len(files)} files | Threats: 0")
+        print("═" * 60 + "\n")
+        return
+
+    # Show threat details
+    print(f"  🚨 THREATS FOUND: {len(threats)} / {len(files)} files")
+    print("═" * 60)
+    for report in threats:
+        print(report.detailed_report())
+        print()
+
+    # Ask user for approval
+    print("\n🔒 REMEDIATION OPTIONS:")
+    print("  [1] QUARANTINE — Move threats to secure vault")
+    print("  [2] DESTROY    — Permanently delete threats (3-pass secure overwrite)")
+    print("  [3] SKIP       — Take no action")
+    choice = input("\n  Select action (1/2/3): ").strip()
+
+    if choice == "1":
+        print("\n🔒 Quarantining threats...")
+        for report in threats:
+            result = scanner.quarantine(report)
+            if result["success"]:
+                print(f"  ✅ Quarantined: {Path(report.target).name}")
+            else:
+                print(f"  ❌ Failed: {result.get('error', 'Unknown error')}")
+        print("\n  🔒 All threats quarantined.")
+
+    elif choice == "2":
+        confirm = input("\n  ⚠️  This is IRREVERSIBLE. Type 'DESTROY' to confirm: ").strip()
+        if confirm == "DESTROY":
+            print("\n🔥 Destroying threats...")
+            for report in threats:
+                result = scanner.destroy(report)
+                if result["success"]:
+                    proof = result["destruction_proof"]
+                    print(f"  🔥 Destroyed: {Path(report.target).name}")
+                    print(f"     Proof: {proof['proof_hash'][:24]}...")
+                else:
+                    print(f"  ❌ Failed: {result.get('error', 'Unknown error')}")
+            print("\n  🔥 All threats destroyed. Cryptographic proof generated.")
+        else:
+            print("  Destruction cancelled.")
+
+    else:
+        print("  ⚠️  No action taken. Threats remain on disk.")
+
+    print("═" * 60 + "\n")
+
 def main():
     parser = argparse.ArgumentParser(
         description="Universal AI Agent — Multi-Model Provider System"
@@ -667,6 +760,12 @@ def main():
         help="Analyze a file using the Multimodal Pipeline (images, PDFs, audio)."
     )
     
+    # === Threat Scanner ===
+    parser.add_argument(
+        "--scan", type=str, default=None,
+        help="Scan a file or directory for viruses, malware, and threats."
+    )
+    
     parser.add_argument(
         "--log-level", type=str, default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -708,6 +807,8 @@ def main():
         run_swarm_task(args.swarm, provider=args.provider, api_key=args.api_key)
     elif args.analyze:
         run_multimodal_analysis(args.analyze, provider=args.provider, api_key=args.api_key)
+    elif args.scan:
+        run_threat_scan(args.scan)
     elif args.providers:
         list_providers()
     elif args.chat:
