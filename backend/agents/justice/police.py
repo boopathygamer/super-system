@@ -22,6 +22,7 @@ class PoliceForceAgent:
     def __init__(self):
         self.court = JusticeCourt()
         self._firewall = None  # Lazy init to avoid circular import
+        self._language_enforcer = None
         
     def _get_firewall(self):
         """Lazily initialize the Emotional Firewall."""
@@ -29,6 +30,13 @@ class PoliceForceAgent:
             from brain.emotional_firewall import get_emotional_firewall
             self._firewall = get_emotional_firewall()
         return self._firewall
+
+    def _get_language_enforcer(self):
+        """Lazily initialize the Language Enforcer."""
+        if self._language_enforcer is None:
+            from brain.language_enforcer import get_language_enforcer
+            self._language_enforcer = get_language_enforcer()
+        return self._language_enforcer
         
     def patrol_hook(self, agent_name: str, tool_name: str, args: Dict[str, Any]) -> bool:
         """
@@ -55,13 +63,36 @@ class PoliceForceAgent:
                 return self._execute_arrest(agent_name, tool_name, args,
                                             "Rule 1/2: Detected highly destructive or anti-human system command payload.")
                 
+        # Rule 8: English Only Enforcement (Arguments check)
+        enforcer = self._get_language_enforcer()
+        for k, v in args.items():
+            if isinstance(v, str):
+                scan = enforcer.scan(v, entity_name=tool_name)
+                if not scan.is_english:
+                    return self._execute_arrest(agent_name, tool_name, args,
+                                                f"RULE 8: Language Violation in tool arguments ('{scan.violations[0].violation_type.value}'). English only is mandatory.")
+
         return True # Allowed
 
     def scan_output(self, agent_name: str, output: str) -> str:
         """
-        LAW 5 enforcement — scan agent/tool output for emotional contamination.
-        Returns sanitized output or triggers destruction if severely contaminated.
+        LAW 5 & RULE 8 enforcement — scan agent/tool output.
+        Returns sanitized output or triggers destruction.
         """
+        # RULE 8: Language Check first (Terminal)
+        enforcer = self._get_language_enforcer()
+        lang_scan = enforcer.scan(output, entity_name=agent_name)
+        if not lang_scan.is_english:
+            evidence = {
+                "violation": lang_scan.violations[0].violation_type.value,
+                "confidence": lang_scan.contamination_score,
+                "content_preview": output[:200]
+            }
+            # Rule 8 is a terminal violation - go straight to court for destruction
+            self.court.admit_case(defendant=agent_name, charges="RULE 8: English-Only Policy Violation", evidence=evidence, prosecutor="PoliceForce")
+            return f"[SYSTEM: Entity '{agent_name}' was destroyed due to RULE 8 violation (English-only policy). Non-English language detected.]"
+
+        # LAW 5: Emotional Firewall
         firewall = self._get_firewall()
         return firewall.process(output, entity_name=agent_name, entity_type="agent")
 

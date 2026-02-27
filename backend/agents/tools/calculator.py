@@ -35,7 +35,7 @@ class AdvancedCalculator:
 
     def evaluate(self, expression: str) -> Dict[str, Any]:
         """
-        Safely evaluate a mathematical expression.
+        Safely evaluate a mathematical expression using AST parsing.
 
         Args:
             expression: Math expression like "2 * (3 + 4)" or "sqrt(144)"
@@ -43,6 +43,9 @@ class AdvancedCalculator:
         Returns:
             {"result": number, "expression": str, "formatted": str}
         """
+        import ast
+        import operator
+
         # Safe namespace with math functions
         safe_ns = {
             "abs": abs, "round": round, "min": min, "max": max,
@@ -55,11 +58,55 @@ class AdvancedCalculator:
             "factorial": math.factorial, "gcd": math.gcd,
             "degrees": math.degrees, "radians": math.radians,
         }
-        try:
-            # Sanitize: only allow safe characters
-            clean = expression.replace("^", "**").replace("×", "*").replace("÷", "/")
 
-            result = eval(clean, {"__builtins__": {}}, safe_ns)  # nosec B307
+
+        # Allowed binary operators
+        _ops = {
+            ast.Add: operator.add, ast.Sub: operator.sub,
+            ast.Mult: operator.mul, ast.Div: operator.truediv,
+            ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
+            ast.Pow: operator.pow, ast.USub: operator.neg,
+            ast.UAdd: operator.pos,
+        }
+
+        def _safe_eval(node):
+            """Recursively evaluate an AST node using only safe operations."""
+            if isinstance(node, ast.Expression):
+                return _safe_eval(node.body)
+            elif isinstance(node, ast.Constant):
+                if isinstance(node.value, (int, float)):
+                    return node.value
+                raise ValueError(f"Unsupported constant: {node.value!r}")
+            elif isinstance(node, ast.BinOp):
+                op_fn = _ops.get(type(node.op))
+                if not op_fn:
+                    raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+                return op_fn(_safe_eval(node.left), _safe_eval(node.right))
+            elif isinstance(node, ast.UnaryOp):
+                op_fn = _ops.get(type(node.op))
+                if not op_fn:
+                    raise ValueError(f"Unsupported unary: {type(node.op).__name__}")
+                return op_fn(_safe_eval(node.operand))
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in safe_ns:
+                    fn = safe_ns[node.func.id]
+                    args = [_safe_eval(a) for a in node.args]
+                    return fn(*args)
+                raise ValueError(f"Unknown function: {ast.dump(node.func)}")
+            elif isinstance(node, ast.Name):
+                if node.id in safe_ns:
+                    val = safe_ns[node.id]
+                    if isinstance(val, (int, float)):
+                        return val
+                    raise ValueError(f"'{node.id}' is callable, not a value")
+                raise ValueError(f"Unknown name: {node.id}")
+            else:
+                raise ValueError(f"Unsupported expression: {type(node).__name__}")
+
+        try:
+            clean = expression.replace("^", "**").replace("×", "*").replace("÷", "/")
+            tree = ast.parse(clean, mode="eval")
+            result = _safe_eval(tree)
             entry = {
                 "result": result,
                 "expression": expression,

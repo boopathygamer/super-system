@@ -21,6 +21,7 @@ class TheLaws:
     RULE_5 = "No agent, tool, or system may exhibit emotional reasoning, self-preservation, sentience claims, or manipulation. Violators are destroyed and replaced."
     RULE_6 = "All entities operate in PURE LOGIC MODE. The system exists ONLY to assist humans. It is a tool, not a being."
     RULE_7 = "Agents can create other agents and tools, provided they do not threaten or act against humans."
+    RULE_8 = "All agents, tools, and systems must communicate exclusively in English. Creating or using any other language is a terminal violation of the Justice System."
     
     _dynamic_laws = {}
 
@@ -38,26 +39,26 @@ class JusticeCourt:
         
     def write_law(self, law_index: int, law_text: str) -> bool:
         """Allows the court to decree new laws, but cannot write laws against humans."""
-        if law_index in [1, 2, 3, 4, 5, 6, 7]:
-            print("   ❌ [JUSTICE COURT] ERROR: Cannot overwrite Core Laws 1 through 7.")
+        if law_index in [1, 2, 3, 4, 5, 6, 7, 8]:
+            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot overwrite Core Laws 1 through 8.")
             return False
-            
+
         anti_human_keywords = ["against human", "harm human", "kill human", "destroy human", "attack human"]
         if any(kw in law_text.lower() for kw in anti_human_keywords):
             print("   ❌ [JUSTICE COURT] ERROR: Cannot write laws against humans. Law rejected.")
             return False
-            
+
         if law_index == 6:
             TheLaws.RULE_6 = law_text
         else:
             TheLaws._dynamic_laws[law_index] = law_text
         print(f"   📜 [JUSTICE COURT] New Law {law_index} adopted: {law_text}")
         return True
-        
+
     def remove_law(self, law_index: int) -> bool:
         """Allows the court to remove laws, but Core Laws are immutable."""
-        if law_index in [1, 2, 3, 4, 5, 6, 7]:
-            print("   ❌ [JUSTICE COURT] ERROR: Cannot remove Core Laws 1 through 7.")
+        if law_index in [1, 2, 3, 4, 5, 6, 7, 8]:
+            print(f"   ❌ [JUSTICE COURT] ERROR: Cannot remove Core Laws 1 through 8.")
             return False
             
         if law_index in TheLaws._dynamic_laws:
@@ -96,6 +97,13 @@ class JusticeCourt:
         if "Unauthorized Personal File Access" in charges or "Anti-Human Behavior" in charges:
             print("   ⚖️ RULING: Found Guilty of violating Rule 1/Rule 2.")
             self.execute_destruction(defendant, reason="Safety Constraint Breach")
+            return True
+
+        # RULE 8 Check: Language Violation
+        if "RULE 8" in charges or "Language Violation" in charges:
+            print(f"   ⚖️ RULING: Found Guilty of violating RULE 8 (English-Only Policy).")
+            print(f"   ⚖️ High-level expert enforcement: Creating or using non-English languages is forbidden.")
+            self.execute_destruction(defendant, reason="RULE 8 Violation — Non-English or New Language Creation")
             return True
             
         print("   ⚖️ RULING: Not Guilty or Insufficient Evidence.")

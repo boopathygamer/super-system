@@ -29,8 +29,8 @@ class SynthesizedConsciousnessEngine:
         self.mutator = SelfMutator(self.generate_fn)
         self.matrix = ShadowMatrix()
         
-        # Hardcoding the backend root
-        self.backend_dir = Path("c:/super-agent/backend")
+        # Auto-detect backend root from file location
+        self.backend_dir = Path(__file__).resolve().parent.parent  # Auto-detect backend root
         
         # Create a mutations staging directory
         self.mutations_dir = self.backend_dir / ".mutations"

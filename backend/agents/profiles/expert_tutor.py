@@ -40,6 +40,9 @@ class TeachingTechnique(Enum):
     SOCRATIC = "socratic"
     ANALOGY_BRIDGE = "analogy_bridge"
     CHUNKING = "chunking"
+    ANTI_PATTERN = "anti_pattern"          # 🚫 "Don't Do This" lessons from mistakes
+    VISUAL_FLOWCHART = "visual_flowchart"  # 📊 Teach with flowcharts & diagrams
+    GAME_CHALLENGE = "game_challenge"      # 🎮 Gamified quiz/challenge mode
 
 
 class StudentLevel(Enum):
@@ -86,6 +89,16 @@ class TutoringSession:
     current_lesson_step: int = 0
     confidence_scores: List[float] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
+
+    # ── Mistake-Based Teaching ──
+    anti_pattern_lessons: List[Any] = field(default_factory=list)
+    mistake_curriculum: Any = None
+    anti_patterns_shown: int = 0
+
+    # ── Gamification ──
+    player_state: Any = None          # GamifiedTutorEngine.PlayerState
+    active_challenge: Any = None      # Active Challenge object
+    game_engine: Any = None           # GamifiedTutorEngine reference
 
 
 # ──────────────────────────────────────────────
@@ -226,6 +239,48 @@ Rules:
 5. After each chunk: "Ready for the next piece of the puzzle?"
 6. At the end, show how ALL chunks connect into the complete picture
 7. Use progress indicators: "Chunk 3/6: [Title]" """,
+
+    TeachingTechnique.ANTI_PATTERN: """\
+🚫 ANTI-PATTERN MODE — "DON'T DO THIS" TEACHING:
+You are teaching by showing what NOT to do, based on real system failures.
+Rules:
+1. Start EVERY lesson with a concrete BAD example — show the mistake first
+2. Use ❌ and ✅ visual markers: "❌ BAD: ..." vs "✅ GOOD: ..."
+3. Explain WHY the bad approach fails with specific technical reasons
+4. Show the CORRECT approach as a direct contrast
+5. State the universal principle/axiom that prevents this mistake
+6. Ask: "Can you spot another scenario where this anti-pattern could appear?"
+7. Use red/green metaphors: "This is a RED FLAG because..."
+8. Include a recovery plan: "If you already made this mistake, here's how to fix it"
+9. Rank dangers: "This is a CRITICAL / HIGH / MEDIUM severity anti-pattern""",
+
+    TeachingTechnique.VISUAL_FLOWCHART: """\
+📊 VISUAL FLOWCHART MODE — TEACH WITH DIAGRAMS:
+You are teaching by creating visual flowcharts and diagrams.
+Rules:
+1. For EVERY concept, provide a Mermaid flowchart diagram in ```mermaid blocks
+2. Use decision flowcharts for "when to use A vs B" questions
+3. Use process flowcharts for step-by-step procedures
+4. Use concept maps to show how ideas relate to each other
+5. Color-code: green for good paths, red for bad paths, blue for decisions
+6. Keep diagrams focused — 6-12 nodes maximum
+7. After each diagram, ask: "Does this diagram make the relationship clear?"
+8. Provide ASCII art fallbacks for key visualizations
+9. Use the diagram as the PRIMARY teaching tool, with text as support""",
+
+    TeachingTechnique.GAME_CHALLENGE: """\
+🎮 GAME CHALLENGE MODE — GAMIFIED LEARNING:
+You are running a gamified challenge session with XP and achievements.
+Rules:
+1. Present questions as CHALLENGES with clear scoring
+2. Award 🌟 XP for correct answers: Easy=10, Medium=20, Hard=50
+3. Track streaks: "🔥 STREAK: 3 correct in a row!"
+4. Use difficulty tiers: 🟢 Easy → 🟡 Medium → 🔴 Hard → 💀 Expert
+5. Give immediate feedback: "✅ CORRECT! +20 XP" or "❌ Not quite! The answer is..."
+6. Provide progress bars: "Progress: ████░░░░░░ 40%"
+7. Celebrate milestones: "🏆 ACHIEVEMENT UNLOCKED: Streak Warrior!"
+8. At the end, show a SCOREBOARD with total XP, accuracy, and time
+9. Make it FUN — use emojis, enthusiasm, and competitive language""",
 }
 
 
@@ -271,16 +326,21 @@ class ExpertTutorEngine:
     into expert-level coaching material that's easy to understand.
     """
 
-    def __init__(self, generate_fn: Callable, agent_controller=None):
+    def __init__(self, generate_fn: Callable, agent_controller=None, memory_manager=None):
         """
         Args:
             generate_fn: The LLM generation function (prompt, system_prompt, temperature)
             agent_controller: Optional AgentController for deep research access
+            memory_manager: Optional MemoryManager for mistake-based teaching
         """
         self.generate_fn = generate_fn
         self.agent = agent_controller
+        self.memory_manager = memory_manager
         self._sessions: Dict[str, TutoringSession] = {}
         self._researcher = None
+        self._mistake_engine = None
+        self._flowchart_gen = None
+        self._game_engine = None
         
         # Lazy-init researcher
         if agent_controller:
@@ -290,7 +350,31 @@ class ExpertTutorEngine:
             except ImportError:
                 logger.warning("DeepWebResearcher not available")
 
-        logger.info("🎓 ExpertTutorEngine initialized")
+        # Init mistake lesson engine
+        try:
+            from brain.mistake_lesson_engine import MistakeLessonEngine
+            self._mistake_engine = MistakeLessonEngine(
+                memory_manager=memory_manager,
+                generate_fn=generate_fn,
+            )
+        except ImportError:
+            logger.warning("MistakeLessonEngine not available")
+
+        # Init flowchart generator
+        try:
+            from brain.flowchart_generator import FlowchartGenerator
+            self._flowchart_gen = FlowchartGenerator(generate_fn=generate_fn)
+        except ImportError:
+            logger.warning("FlowchartGenerator not available")
+
+        # Init gamification engine
+        try:
+            from agents.profiles.gamified_tutor import GamifiedTutorEngine
+            self._game_engine = GamifiedTutorEngine(generate_fn=generate_fn)
+        except ImportError:
+            logger.warning("GamifiedTutorEngine not available")
+
+        logger.info("🎓 ExpertTutorEngine initialized (with mistake/flowchart/game support)")
 
     # ──────────────────────────────────────
     # Session Management
@@ -333,13 +417,33 @@ class ExpertTutorEngine:
         # Step 4: Choose initial teaching technique
         session.current_technique = self._select_technique(topic)
         
+        # Step 5: Load anti-pattern lessons from the system's mistake history
+        if self._mistake_engine:
+            try:
+                session.anti_pattern_lessons = self._mistake_engine.get_lessons_for_topic(topic)
+                session.mistake_curriculum = self._mistake_engine.generate_curriculum(topic)
+                if session.anti_pattern_lessons:
+                    logger.info(
+                        f"🚫 Loaded {len(session.anti_pattern_lessons)} anti-pattern lessons "
+                        f"for topic '{topic}'"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to load anti-pattern lessons: {e}")
+        
+        # Step 6: Initialize gamification player state
+        if self._game_engine:
+            session.player_state = self._game_engine.create_player()
+            session.game_engine = self._game_engine
+        
         self._sessions[session_id] = session
         
         logger.info(
             f"🎓 Session {session_id}: topic='{topic}', "
             f"technique={session.current_technique.value}, "
             f"research={'YES' if session.research_triggered else 'NO'}, "
-            f"lesson_steps={len(session.lesson_plan)}"
+            f"lesson_steps={len(session.lesson_plan)}, "
+            f"anti_patterns={len(session.anti_pattern_lessons)}, "
+            f"gamified={'YES' if session.player_state else 'NO'}"
         )
         
         return session
@@ -444,6 +548,17 @@ class ExpertTutorEngine:
         # Include research if available
         if session.research_intel:
             teaching_prompt += self._format_research_context(session.research_intel)
+        
+        # Include anti-pattern lessons if in ANTI_PATTERN mode or if relevant
+        if session.anti_pattern_lessons:
+            if (session.current_technique == TeachingTechnique.ANTI_PATTERN
+                or session.anti_patterns_shown < len(session.anti_pattern_lessons)):
+                teaching_prompt += self._format_anti_pattern_context(session)
+        
+        # Include flowchart if in VISUAL_FLOWCHART mode
+        if (session.current_technique == TeachingTechnique.VISUAL_FLOWCHART
+            and self._flowchart_gen):
+            teaching_prompt += self._format_flowchart_context(session, student_message)
         
         response = self._call_llm(teaching_prompt, system_prompt, temperature=0.7)
         
@@ -876,6 +991,165 @@ class ExpertTutorEngine:
         return min(1.0, specificity_score)
 
     # ──────────────────────────────────────
+    # Anti-Pattern & Flowchart Context
+    # ──────────────────────────────────────
+
+    def _format_anti_pattern_context(self, session: TutoringSession) -> str:
+        """Format anti-pattern lessons as context for the teaching prompt."""
+        if not session.anti_pattern_lessons:
+            return ""
+
+        parts = ["\n\n--- ANTI-PATTERN LESSONS (teach these as 'Don't Do This' warnings) ---"]
+
+        # Show the next unshown anti-pattern lesson
+        idx = session.anti_patterns_shown
+        if idx < len(session.anti_pattern_lessons) and self._mistake_engine:
+            lesson = session.anti_pattern_lessons[idx]
+            parts.append(self._mistake_engine.format_lesson_for_prompt(lesson))
+            session.anti_patterns_shown += 1
+
+            # Award gamification XP
+            if session.player_state and session.game_engine:
+                session.game_engine.record_anti_pattern_learned(session.player_state)
+
+        parts.append("--- END ANTI-PATTERN LESSONS ---")
+        parts.append(
+            "IMPORTANT: Weave these anti-patterns naturally into your teaching. "
+            "Show the bad approach first with ❌, then contrast with the good approach ✅. "
+            "Explain WHY the mistake is dangerous."
+        )
+        return "\n".join(parts)
+
+    def _format_flowchart_context(self, session: TutoringSession, student_msg: str) -> str:
+        """Generate and format a flowchart for the current teaching context."""
+        if not self._flowchart_gen:
+            return ""
+
+        try:
+            from brain.flowchart_generator import FlowchartType
+
+            # Select appropriate flowchart type based on context
+            msg_lower = student_msg.lower()
+            if any(w in msg_lower for w in ["choose", "decision", "which", "should i", "vs"]):
+                chart_type = FlowchartType.DECISION
+            elif any(w in msg_lower for w in ["how", "steps", "process", "procedure"]):
+                chart_type = FlowchartType.PROCESS
+            elif any(w in msg_lower for w in ["wrong", "mistake", "bad", "don't", "avoid"]):
+                chart_type = FlowchartType.ANTI_PATTERN
+            elif any(w in msg_lower for w in ["relate", "connect", "map", "overview"]):
+                chart_type = FlowchartType.CONCEPT_MAP
+            elif any(w in msg_lower for w in ["compare", "difference", "versus", "pros cons"]):
+                chart_type = FlowchartType.COMPARISON
+            elif any(w in msg_lower for w in ["debug", "fix", "error", "bug"]):
+                chart_type = FlowchartType.DEBUG_TRACE
+            else:
+                chart_type = FlowchartType.PROCESS
+
+            chart = self._flowchart_gen.generate(
+                topic=session.topic,
+                chart_type=chart_type,
+                context=student_msg,
+            )
+
+            # Award flowchart XP
+            if session.player_state and session.game_engine:
+                session.game_engine.record_flowchart_requested(session.player_state)
+
+            return (
+                "\n\n--- VISUAL FLOWCHART (include in your response as a mermaid block) ---\n"
+                f"```mermaid\n{chart}\n```\n"
+                "--- END FLOWCHART ---\n"
+                "IMPORTANT: Include this flowchart in your response inside a ```mermaid block. "
+                "Explain each node in the diagram. Ask the student to trace through it."
+            )
+        except Exception as e:
+            logger.warning(f"Flowchart generation failed: {e}")
+            return ""
+
+    # ──────────────────────────────────────
+    # Gamification API Methods
+    # ──────────────────────────────────────
+
+    def get_game_dashboard(self, session_id: str) -> Optional[str]:
+        """Get the gamification dashboard for a session."""
+        session = self.get_session(session_id)
+        if not session or not session.player_state or not session.game_engine:
+            return None
+        from agents.profiles.gamified_tutor import render_dashboard
+        return render_dashboard(session.player_state)
+
+    def start_challenge(self, session_id: str, mode: str = "quiz") -> Optional[Dict[str, Any]]:
+        """Start a gamified challenge within a tutoring session."""
+        session = self.get_session(session_id)
+        if not session or not session.game_engine:
+            return None
+
+        from agents.profiles.gamified_tutor import ChallengeMode
+        try:
+            challenge_mode = ChallengeMode(mode)
+        except ValueError:
+            challenge_mode = ChallengeMode.QUIZ
+
+        challenge = session.game_engine.create_challenge(
+            mode=challenge_mode,
+            topic=session.topic,
+        )
+        session.active_challenge = challenge
+
+        return {
+            "challenge_id": challenge.id,
+            "mode": challenge.mode.value,
+            "questions": len(challenge.questions),
+            "first_question": challenge.questions[0].question if challenge.questions else "",
+            "options": challenge.questions[0].options if challenge.questions else [],
+        }
+
+    def answer_challenge(self, session_id: str, answer: str) -> Optional[Dict[str, Any]]:
+        """Answer the current challenge question."""
+        session = self.get_session(session_id)
+        if not session or not session.active_challenge or not session.game_engine:
+            return None
+
+        return session.game_engine.answer_challenge(
+            challenge_id=session.active_challenge.id,
+            answer=answer,
+            state=session.player_state,
+        )
+
+    def generate_flowchart(self, session_id: str, chart_type: str = "process") -> Optional[str]:
+        """Generate a standalone flowchart for a session's topic."""
+        session = self.get_session(session_id)
+        if not session or not self._flowchart_gen:
+            return None
+
+        from brain.flowchart_generator import FlowchartType
+        try:
+            ftype = FlowchartType(chart_type)
+        except ValueError:
+            ftype = FlowchartType.PROCESS
+
+        return self._flowchart_gen.generate(topic=session.topic, chart_type=ftype)
+
+    def get_anti_patterns(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all anti-pattern lessons for a session."""
+        session = self.get_session(session_id)
+        if not session or not session.anti_pattern_lessons:
+            return []
+
+        return [
+            {
+                "title": l.title,
+                "category": l.category,
+                "danger_score": l.danger_score,
+                "bad_approach": l.bad_approach,
+                "correct_approach": l.correct_approach,
+                "expert_principle": l.expert_principle,
+                "flowchart": l.flowchart,
+            }
+            for l in session.anti_pattern_lessons
+        ]
+
+    # ──────────────────────────────────────
     # API-Compatible Methods
     # ──────────────────────────────────────
 
@@ -891,6 +1165,8 @@ class ExpertTutorEngine:
             "research_used": session.research_triggered,
             "lesson_plan": session.lesson_plan,
             "opening_message": opening,
+            "anti_patterns_loaded": len(session.anti_pattern_lessons),
+            "gamification_active": session.player_state is not None,
         }
 
     def api_respond(self, session_id: str, message: str) -> Dict[str, Any]:
@@ -901,7 +1177,7 @@ class ExpertTutorEngine:
         
         response = self.respond_to_student(session, message)
         
-        return {
+        result = {
             "session_id": session_id,
             "response": response,
             "student_level": session.student_level.value,
@@ -915,4 +1191,19 @@ class ExpertTutorEngine:
                 ),
             },
             "research_used": session.research_triggered,
+            "anti_patterns_shown": session.anti_patterns_shown,
         }
+        
+        # Include gamification data if active
+        if session.player_state:
+            result["gamification"] = {
+                "xp": session.player_state.xp,
+                "level": session.player_state.level.value,
+                "streak": session.player_state.streak,
+                "achievements_unlocked": sum(
+                    1 for a in session.player_state.achievements.values()
+                    if a.unlocked
+                ),
+            }
+        
+        return result
