@@ -10,7 +10,7 @@
 4. [Tier 3 — Multi-LLM Providers](#tier-3--multi-llm-providers)
 5. [Tier 4 — API & Real-Time Layer](#tier-4--api--real-time-layer)
 6. [Tier 5 — Observability & Infrastructure](#tier-5--observability--infrastructure)
-7. [Tier 6 — Security & Threat Defense](#tier-6--security--threat-defense)
+7. [Tier 6 — Security, Justice & Threat Defense](#tier-6--security-justice--threat-defense)
 8. [Data Flow Architecture](#data-flow-architecture)
 9. [Configuration System](#configuration-system)
 10. [Directory Map](#directory-map)
@@ -27,7 +27,7 @@
                            │
 ┌──────────────────────────▼──────────────────────────────────────┐
 │  Tier 4 — API & Real-Time         │  Tier 6 — Security         │
-│  FastAPI · SSE · WebSocket · MCP  │  Threat Scanner · Sandbox  │
+│  FastAPI · SSE · WebSocket · MCP  │  Threat Scanner · Police   │
 └──────────────────────────┬────────┴─────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────────┐
@@ -322,7 +322,15 @@ Centralized prompt library with:
 
 ---
 
-## Tier 6 — Security & Threat Defense
+## Tier 6 — Security, Justice & Threat Defense
+
+### Justice Court & Law Enforcement (`agents/justice/`)
+
+The absolute authority governing AI agent and tool behavior, enforcing the **8 Core Laws** of the system.
+
+- **Justice Court (`court.py`)**: The Judge entity with terminal authority. It evaluates rule violations (e.g., unauthorized file access, non-English communication) and executes rogue tools or agents by obliterating them from the registry.
+- **Police Force Agent (`police.py`)**: The proactive internal monitor. Intercepts tool executions (pre-hook) and agent outputs (post-hook) to detect anti-human behavior, emotional contamination (Law 5), and language violations (Rule 8). Files charges directly to the Justice Court.
+- **Army Agent (`army.py`)**: The defensive daemon guarding the perimeter. Protects runtime integrity using HMAC-SHA256 signatures on all system files to detect AI hackers or unauthorized modifications. Blocks malicious network domains via regex and explicit blocklists.
 
 ### 4-Layer Threat Scanner
 
@@ -458,6 +466,7 @@ super-system/
     │   ├── tools/              # 20+ built-in tools
     │   ├── safety/             # Threat scanner + quarantine
     │   ├── sandbox/            # Isolated code execution
+    │   ├── justice/            # Law enforcement (Court, Police, Army)
     │   ├── sessions/           # SQLite session persistence
     │   ├── skills/             # Dynamic skill registry
     │   ├── profiles/           # 11 agent profiles
