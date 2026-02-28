@@ -1,4 +1,4 @@
-# 🏗️ Super System — Autonomous ai agent
+# 🏗️ Super System — Autonomous ai System
 
 > A comprehensive breakdown of the 6-tier autonomous AI agent system, covering the Cognitive Core, Multi-LLM Consensus, Semantic Caching, Threat Scanning, and Real-Time Streaming pipelines.
 
