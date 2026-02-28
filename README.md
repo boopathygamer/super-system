@@ -1,6 +1,6 @@
-# 🚀 SuperChain — Universal AI Agent
+# 🚀 Super-system — Autonomous AI Agent
 
-An advanced self-evolving AI agent system with expert-level reasoning, self-healing code generation, and autonomous learning capabilities.
+An advanced self-evolving AI agent system with expert-level thinking, reasoning, self-healing code generation, and autonomous learning capabilities.
 
 ## Architecture
 
