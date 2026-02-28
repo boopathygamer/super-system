@@ -28,6 +28,9 @@ from brain.credit_assignment import CreditAssignmentEngine, CreditReport
 from brain.prompt_evolver import PromptEvolver
 from brain.epistemic_checker import EpistemicChecker
 
+from telemetry.metrics import MetricsCollector
+from telemetry.tracer import SpanTracer
+
 # Auto-Gap Detection: optional ToolForge integration
 try:
     from agents.tools.tool_forge import ToolForge
@@ -161,6 +164,10 @@ class ThinkingLoop:
         # Phase 12: Epistemic Fact Checking
         self.epistemic_checker = EpistemicChecker(generate_fn)
 
+        # ── EXPERT TELEMETRY ──
+        self.tracer = SpanTracer()
+        self.metrics = MetricsCollector.get_instance()
+
         # Auto-Gap Detection: ToolForge integration
         self.tool_forge = tool_forge
         self._auto_forge_attempts: int = 0
@@ -200,7 +207,7 @@ class ThinkingLoop:
         # Initialize trajectory trace for this episode
         trajectory = TrajectoryTrace(problem=problem)
 
-        logger.info(f"Starting thinking loop: {problem[:100]}...")
+        self.metrics.counter("brain.thinking_loop.started")
 
         # Phase 1: Classify problem domain
         domain = self.classifier.classify(problem)
@@ -279,8 +286,6 @@ class ThinkingLoop:
             step = ThinkingStep(iteration=iteration)
             step.strategy_used = current_mode.value
             step.reasoning_trace = reasoning_trace
-
-            logger.info(f"--- Iteration {iteration + 1}/{max_iter} [{current_mode.value}] ---")
 
             # SYNTHESIZE: Get best candidate from hypothesis mixture
             step.candidate = self.hypothesis_engine.synthesize_candidate(
@@ -536,7 +541,10 @@ class ThinkingLoop:
         # ── Phase 10: Post-Solve Learning Pipeline ──
         self._post_solve_learning(trajectory, result, domain)
 
-        logger.info(result.summary())
+        self.metrics.histogram("brain.thinking_loop.duration_ms", result.total_duration_ms)
+        self.metrics.histogram("brain.thinking_loop.iterations", result.iterations)
+        self.metrics.histogram("brain.thinking_loop.final_confidence", result.final_confidence)
+
         return result
         
     def _generate_goal_tree(self, trajectory: TrajectoryTrace, result: ThinkingResult, domain: ProblemDomain) -> str:

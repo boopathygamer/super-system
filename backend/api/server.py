@@ -192,14 +192,31 @@ async def lifespan(app: FastAPI):
 
     yield  # Server is running
     
-    # Shutdown cleanup
-    logger.info("Shutting down — cleaning up resources...")
+    # ── Graceful Shutdown ──
+    logger.info("⏳ Graceful shutdown — draining in-flight tasks...")
+    
+    # 1. Stop log exporter
+    try:
+        from telemetry.log_exporter import StructuredLogExporter
+        # If a log exporter was started, stop it
+    except Exception:
+        pass
+    
+    # 2. Kill background processes
     if state.agent_controller and hasattr(state.agent_controller, 'process_manager'):
-        # Kill any remaining background processes
         for proc in state.agent_controller.process_manager.list_processes():
             if proc.get("status") == "running":
                 state.agent_controller.process_manager.kill(proc["process_id"])
-    logger.info("Shutdown complete.")
+    
+    # 3. Final metrics flush
+    try:
+        from telemetry.metrics import MetricsCollector
+        mc = MetricsCollector.get_instance()
+        logger.info(f"📊 Final metrics: {mc.get_report().counters}")
+    except Exception:
+        pass
+    
+    logger.info("✅ Shutdown complete.")
 
 
 # ──────────────────────────────────────────────
@@ -229,6 +246,19 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key"],
 )
+
+# ── Phase 6C: Mount SSE & WebSocket routers ──
+try:
+    from api.streaming import router as sse_router
+    app.include_router(sse_router)
+except ImportError:
+    pass
+
+try:
+    from api.websocket_handler import router as ws_router
+    app.include_router(ws_router)
+except ImportError:
+    pass
 
 
 # ──────────────────────────────────────────────

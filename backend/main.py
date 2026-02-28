@@ -143,14 +143,24 @@ def start_server(provider: str = "auto", api_key: str = None):
     except Exception as e:
         logger.warning(f"Failed to boot Army Agent Defense Matrix: {e}")
 
-    uvicorn.run(
-        "api.server:app",
-        host=api_config.host,
-        port=api_config.port,
-        reload=api_config.reload,
-        workers=api_config.workers,
-        log_level="info",
-    )
+    uvicorn_kwargs = {
+        "host": api_config.host,
+        "port": api_config.port,
+        "reload": api_config.reload,
+        "workers": api_config.workers,
+        "log_level": "info",
+    }
+
+    # ── HTTPS / TLS Support ──
+    from config.settings import ssl_config
+    if ssl_config.is_ready:
+        uvicorn_kwargs["ssl_keyfile"] = ssl_config.keyfile
+        uvicorn_kwargs["ssl_certfile"] = ssl_config.certfile
+        logger.info(f"🔒 HTTPS enabled with cert={ssl_config.certfile}")
+    else:
+        logger.info("🔓 Running in HTTP mode (set SSL_ENABLED=1 and provide certs for HTTPS)")
+
+    uvicorn.run("api.server:app", **uvicorn_kwargs)
 
 
 def interactive_chat(provider: str = "auto", api_key: str = None):

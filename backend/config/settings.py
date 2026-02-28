@@ -1,12 +1,26 @@
 """
 Global configuration for the Custom LLM System.
 All paths, hyperparameters, and thresholds live here.
+Loads .env file automatically for secure secret management.
 """
 
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
+
+# ── Load .env file if present (before any os.getenv calls) ──
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _key, _, _val = _line.partition("=")
+                _key = _key.strip()
+                _val = _val.strip().strip("'\"")
+                if _key and _key not in os.environ:  # Don't override real env vars
+                    os.environ[_key] = _val
 
 
 # ──────────────────────────────────────────────
@@ -151,6 +165,28 @@ class APIConfig:
     workers: int = 1
 
 
+@dataclass
+class SSLConfig:
+    """HTTPS / TLS configuration."""
+    enabled: bool = bool(os.getenv("SSL_ENABLED", ""))
+    certfile: str = os.getenv("SSL_CERTFILE", "certs/server.crt")
+    keyfile: str = os.getenv("SSL_KEYFILE", "certs/server.key")
+
+    @property
+    def is_ready(self) -> bool:
+        return self.enabled and Path(self.certfile).exists() and Path(self.keyfile).exists()
+
+
+@dataclass
+class TokenBudgetConfig:
+    """Token budget management."""
+    daily_limit: int = int(os.getenv("TOKEN_DAILY_LIMIT", "1000000"))
+    monthly_limit: int = int(os.getenv("TOKEN_MONTHLY_LIMIT", "30000000"))
+    cost_per_1k_premium: float = 0.03   # GPT-4o / Claude 3.5
+    cost_per_1k_budget: float = 0.001   # Llama / Mistral
+    auto_downgrade: bool = True
+
+
 # ──────────────────────────────────────────────
 # Global Singleton Configs
 # ──────────────────────────────────────────────
@@ -160,4 +196,7 @@ provider_config = ProviderConfig()
 api_config = APIConfig()
 brain_config = BrainConfig()
 threat_config = ThreatScanConfig()
+ssl_config = SSLConfig()
+token_budget_config = TokenBudgetConfig()
+
 

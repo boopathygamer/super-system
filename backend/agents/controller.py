@@ -58,6 +58,8 @@ from agents.prompts.templates import AGENT_SYSTEM_PROMPT, TOOL_USE_PROMPT
 from core.streaming import StreamProcessor, StreamConfig, StreamEventType
 from agents.safety import ContentFilter, PIIGuard, EthicsEngine
 from agents.safety.threat_scanner import ThreatScanner
+from telemetry.metrics import MetricsCollector
+from telemetry.tracer import SpanTracer
 
 # ── Universal Agent Subsystems ──
 from agents.experts.router import DomainRouter
@@ -136,6 +138,10 @@ class AgentController:
             memory=self.memory,
             tool_forge=self.tool_forge,
         )
+
+        # ── EXPERT TELEMETRY: Trace Spans & Metrics ──
+        self.tracer = SpanTracer()
+        self.metrics = MetricsCollector.get_instance()
 
         # ── New Subsystem 1: Tool Policy Engine ──
         profile_map = {
@@ -258,9 +264,13 @@ class AgentController:
         active_session = session_id or self._main_session.session_id
 
         response.session_id = active_session
-        logger.info(f"Processing [{active_session}]: {user_input[:100]}...")
+        self.metrics.counter("agent.process.requests_total")
 
-        # ── SAFETY GATE: Check input before any processing ──
+        with self.tracer.span("process_request") as root_span:
+            root_span.attributes["session_id"] = active_session
+            root_span.attributes["max_tools"] = max_tools
+            
+            # ── SAFETY GATE: Check input before any processing ──
         safety_verdict = self.content_filter.check_input(user_input)
         if safety_verdict.is_blocked:
             logger.warning(
@@ -286,9 +296,13 @@ class AgentController:
             active_session, "user", user_input,
         )
 
-        # Step 0: UNIVERSAL — Domain classification + Persona detection
-        domain_match = self.domain_router.classify(user_input)
-        persona = self.persona_engine.detect(user_input)
+        with self.tracer.span("universal_routing") as route_span:
+            # Step 0: UNIVERSAL — Domain classification + Persona detection
+            domain_match = self.domain_router.classify(user_input)
+            persona = self.persona_engine.detect(user_input)
+            
+            route_span.attributes["primary_domain"] = domain_match.primary_domain
+            route_span.attributes["persona"] = persona.name
         
         # FEATURE 1: Dynamic Domain Generation
         # If confidence is 0.0 (no match), generate a dynamic expert context on the fly
@@ -318,16 +332,13 @@ class AgentController:
             persona=self.persona_engine.current_name,
             domain_context=expert_context,
         )
-        logger.info(
-            f"Domain: {domain_match.primary_domain} "
-            f"({domain_match.confidence:.0%}), "
-            f"Persona: {self.persona_engine.current_name}, "
-            f"Reasoning: {reasoning.strategy_used.value}"
-        )
 
-        # Step 1: COMPILE — Parse user request
-        task_spec = self.compiler.compile(user_input)
-        response.task_spec = task_spec
+        with self.tracer.span("compile_task") as comp_span:
+            # Step 1: COMPILE — Parse user request
+            task_spec = self.compiler.compile(user_input)
+            response.task_spec = task_spec
+            comp_span.attributes["action_type"] = task_spec.action_type
+            comp_span.attributes["tools_needed"] = len(task_spec.tools_needed)
 
         # Handle refused tasks from compiler safety check
         if task_spec.action_type == "refused":
@@ -361,26 +372,31 @@ class AgentController:
             reasoning_prompt=reasoning.reasoning_prompt,
         )
 
-        # Step 4: THINK — Use the thinking loop or direct generation
-        if use_thinking_loop and task_spec.action_type != "general":
-            thinking_result = self.thinking_loop.think(
-                problem=enhanced_prompt,
-                action_type=task_spec.action_type,
-            )
-            response.answer = thinking_result.final_answer
-            response.thinking_trace = thinking_result
-            response.confidence = thinking_result.final_confidence
-            response.iterations = thinking_result.iterations
-            response.mode = thinking_result.mode.value
-        else:
-            answer = self.thinking_loop.quick_think(
-                problem=enhanced_prompt,
-                action_type=task_spec.action_type,
-            )
-            response.answer = answer
-            response.confidence = 0.8
-            response.iterations = 1
-            response.mode = "direct"
+        with self.tracer.span("think") as think_span:
+            # Step 4: THINK — Use the thinking loop or direct generation
+            if use_thinking_loop and task_spec.action_type != "general":
+                thinking_result = self.thinking_loop.think(
+                    problem=enhanced_prompt,
+                    action_type=task_spec.action_type,
+                )
+                response.answer = thinking_result.final_answer
+                response.thinking_trace = thinking_result
+                response.confidence = thinking_result.final_confidence
+                response.iterations = thinking_result.iterations
+                response.mode = thinking_result.mode.value
+                think_span.attributes["iterations"] = response.iterations
+            else:
+                answer = self.thinking_loop.quick_think(
+                    problem=enhanced_prompt,
+                    action_type=task_spec.action_type,
+                )
+                response.answer = answer
+                response.confidence = 0.8
+                response.iterations = 1
+                response.mode = "direct"
+                
+            think_span.attributes["mode"] = response.mode
+            think_span.attributes["confidence"] = response.confidence
 
         # ── OUTPUT SAFETY GATE: Filter AI response ──
         # 1) Check output for harmful content
@@ -419,14 +435,12 @@ class AgentController:
             self.session_manager.compact_session(active_session, summary)
 
         response.duration_ms = (time.time() - start_time) * 1000
-        logger.info(
-            f"Response [{active_session}]: {len(response.answer)} chars, "
-            f"conf={response.confidence:.3f}, "
-            f"mode={response.mode}, "
-            f"tools={len(tool_results)}, "
-            f"{response.duration_ms:.0f}ms"
-        )
-
+        
+        # ── EXPERT TELEMETRY: Record metrics ──
+        self.metrics.histogram("agent.process.duration_ms", response.duration_ms)
+        self.metrics.histogram("agent.process.confidence", response.confidence)
+        self.metrics.counter(f"agent.process.mode.{response.mode}")
+        
         return response
 
     def chat(self, message: str, session_id: str = None) -> str:
