@@ -114,37 +114,16 @@ class AgentConfig:
 
 
 @dataclass
-class ProviderConfig:
-    """Multi-model provider configuration."""
-    # Active provider: auto | gemini | claude | chatgpt
-    provider: str = os.getenv("LLM_PROVIDER", "auto")
-
-    # API Keys (from environment variables)
-    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    claude_api_key: str = os.getenv("CLAUDE_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-
-    # Model names (customizable per provider)
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    claude_model: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+class UniversalAPIConfig:
+    """Universal API provider configuration."""
+    api_key: str = os.getenv("LLM_API_KEY", "")
+    base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    model: str = os.getenv("LLM_MODEL", "gpt-4o")
 
     @property
-    def has_any_api_key(self) -> bool:
-        """Check if any API key is configured."""
-        return bool(self.gemini_api_key or self.claude_api_key or self.openai_api_key)
-
-    @property
-    def available_providers(self) -> list:
-        """List providers with configured API keys."""
-        providers = []
-        if self.gemini_api_key:
-            providers.append("gemini")
-        if self.claude_api_key:
-            providers.append("claude")
-        if self.openai_api_key:
-            providers.append("chatgpt")
-        return providers
+    def is_configured(self) -> bool:
+        """Check if API details are minimally configured."""
+        return bool(self.api_key)
 
 
 @dataclass
@@ -192,7 +171,7 @@ class TokenBudgetConfig:
 # ──────────────────────────────────────────────
 
 agent_config = AgentConfig()
-provider_config = ProviderConfig()
+provider_config = UniversalAPIConfig()
 api_config = APIConfig()
 brain_config = BrainConfig()
 threat_config = ThreatScanConfig()

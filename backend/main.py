@@ -54,47 +54,18 @@ def setup_logging(level: str = "INFO"):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-def create_provider_registry(provider: str = "auto", api_key: str = None):
+def create_provider_registry(provider: str = "auto", api_key: str = None, base_url: str = None):
     """
     Create and configure the provider registry.
-
-    Args:
-        provider: Which provider to use (auto/gemini/claude/chatgpt/local)
-        api_key: Optional API key (auto-assigned to matching provider)
-
-    Returns:
-        Configured ProviderRegistry
     """
     from core.model_providers import ProviderRegistry
-
-    # If user passed --api-key, figure out which provider it's for
-    gemini_key = claude_key = openai_key = None
+    from config.settings import provider_config
     if api_key:
-        if provider == "gemini":
-            gemini_key = api_key
-        elif provider == "claude":
-            claude_key = api_key
-        elif provider == "chatgpt":
-            openai_key = api_key
-        else:
-            # Auto-detect: try to guess from key format
-            if api_key.startswith("AIza"):
-                gemini_key = api_key
-            elif api_key.startswith("sk-ant-"):
-                claude_key = api_key
-            elif api_key.startswith("sk-"):
-                openai_key = api_key
-            else:
-                # Default to gemini if can't guess
-                gemini_key = api_key
-
-    registry = ProviderRegistry.auto_detect(
-        preferred=provider,
-        gemini_key=gemini_key,
-        claude_key=claude_key,
-        openai_key=openai_key,
-    )
-
+        provider_config.api_key = api_key
+    if base_url:
+        provider_config.base_url = base_url
+    
+    registry = ProviderRegistry.auto_detect()
     return registry
 
 
@@ -125,12 +96,12 @@ def show_banner(registry=None):
     """)
 
 
-def start_server(provider: str = "auto", api_key: str = None):
+def start_server(provider: str = "auto", api_key: str = None, base_url: str = None):
     """Start the FastAPI server."""
     import uvicorn
     from config.settings import api_config
 
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     show_banner(registry)
 
     # Store registry for the API server to pick up
@@ -163,11 +134,11 @@ def start_server(provider: str = "auto", api_key: str = None):
     uvicorn.run("api.server:app", **uvicorn_kwargs)
 
 
-def interactive_chat(provider: str = "auto", api_key: str = None):
+def interactive_chat(provider: str = "auto", api_key: str = None, base_url: str = None):
     """Run interactive chat in the terminal with any model provider."""
     from agents.controller import AgentController
 
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     show_banner(registry)
 
     print(registry.status_display())
@@ -198,7 +169,7 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
     print("    /stats     — Show memory stats")
     print("    /reset     — Clear conversation")
     print("    /provider  — Show active provider")
-    print("    /switch X  — Switch to provider X (gemini/claude/chatgpt)")
+    print("    /model X   — Set target model X")
     print("    /models    — List all available providers")
     print(f"{'═' * 60}\n")
 
@@ -241,22 +212,17 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
                 print()
                 continue
 
-            if user_input.startswith("/switch"):
+            if user_input.startswith("/model"):
                 parts = user_input.split()
                 if len(parts) < 2:
-                    print("Usage: /switch gemini|claude|chatgpt\n")
+                    print("Usage: /model <model_name>\\n")
                     continue
-                target = parts[1].lower()
-                if registry.set_active(target):
-                    # Update the generate function
-                    generate_fn = registry.generate_fn()
-                    agent._generate = generate_fn
-                    p = registry.active
-                    print(f"\n🔄 Switched to: {p.name} ({p.model})\n")
-                else:
-                    print(f"\n❌ Provider '{target}' not available.")
-                    print(f"   Available: {[p['name'] for p in registry.list_providers()]}\n")
+                target = parts[1]
+                from config.settings import provider_config
+                provider_config.model = target
+                print(f"\\n🔄 Model target updated to: {target} (will apply on next restart)\\n")
                 continue
+
 
             # ── Normal message processing ──
             use_thinking = user_input.startswith("/think")
@@ -297,33 +263,22 @@ def interactive_chat(provider: str = "auto", api_key: str = None):
 def list_providers():
     """Show all available model providers."""
     registry = create_provider_registry()
-    print(f"\n{registry.status_display()}")
-    print()
-    for info in registry.list_providers():
-        status = "🟢 ACTIVE" if info["active"] else "⚪ ready"
-        print(f"  {status}  {info['name']:<10} → {info['model']}")
-    print()
+    print(f"\\n{registry.status_display()}")
+    
 
-    # Show how to configure
     from config.settings import provider_config
-    if not provider_config.has_any_api_key:
-        print("  💡 No API keys detected! Set environment variables:")
-        print("     set GEMINI_API_KEY=your-key    (for Google Gemini)")
-        print("     set CLAUDE_API_KEY=your-key    (for Anthropic Claude)")
-        print("     set OPENAI_API_KEY=your-key    (for OpenAI ChatGPT)")
+    if not provider_config.is_configured:
+        print("  💡 No API key detected! Set environment variables:")
+        print("     set LLM_API_KEY=your-key")
+        print("     set LLM_BASE_URL=https://api.openai.com/v1 (optional)")
+        print("     set LLM_MODEL=gpt-4o (optional)")
         print()
-        print("  Or create a .env file in the project root:")
-        print("     GEMINI_API_KEY=your-key-here")
-        print("     CLAUDE_API_KEY=your-key-here")
-        print("     OPENAI_API_KEY=your-key-here")
-        print()
-
-def run_evolution(prompt: str, provider: str = "auto", api_key: str = None):
+def run_evolution(prompt: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     """Run the Code Evolution Engine."""
     from core.model_providers import create_provider_registry
     from brain.evolution import CodeEvolutionEngine
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Please set API keys.")
         return
@@ -342,13 +297,13 @@ def run_evolution(prompt: str, provider: str = "auto", api_key: str = None):
         print(best.code)
         print("=" * 60 + "\n")
 
-def start_night_watch(provider: str = "auto", api_key: str = None):
+def start_night_watch(provider: str = "auto", api_key: str = None, base_url: str = None):
     """Start the Night Watch Daemon."""
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.proactive.night_watch import NightWatchDaemon
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Night Watch cannot start.")
         return
@@ -363,13 +318,13 @@ def start_night_watch(provider: str = "auto", api_key: str = None):
     daemon.run_nightly_audit()
 
 
-def run_threat_hunter(file_path: str, provider: str = "auto", api_key: str = None):
+def run_threat_hunter(file_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     """Run a security audit on a file."""
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.threat_hunter import ThreatHunter
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Threat Hunter cannot start.")
         return
@@ -393,13 +348,13 @@ def run_swarm_defense():
     matrix.deploy()
 
 
-def run_transpile(source_dir: str, target_lang: str, provider: str = "auto", api_key: str = None):
+def run_transpile(source_dir: str, target_lang: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     """Run the Reverse-Engineering Code Transpiler."""
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from brain.transpiler import ReverseTranspiler
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Transpiler cannot start.")
         return
@@ -412,11 +367,11 @@ def run_transpile(source_dir: str, target_lang: str, provider: str = "auto", api
     transpiler.transpile_directory(source_dir, target_lang)
 
 
-def run_devils_advocate(file_path: str, provider: str = "auto", api_key: str = None):
+def run_devils_advocate(file_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.devils_advocate import DevilsAdvocate
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     print(f"\n👔 Assembling the Board of Directors ({registry.active.name})")
     agent = AgentController(generate_fn=registry.generate_fn())
@@ -424,63 +379,63 @@ def run_devils_advocate(file_path: str, provider: str = "auto", api_key: str = N
     result = board.audit_business_plan(file_path)
     print("\n" + "=" * 60 + "\n" + result.answer + "\n" + "=" * 60 + "\n")
 
-def run_socratic_tutor(topic: str, provider: str = "auto", api_key: str = None):
+def run_socratic_tutor(topic: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.expert_tutor import ExpertTutorEngine
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
     tutor = ExpertTutorEngine(generate_fn=registry.generate_fn(), agent_controller=agent)
     tutor.start_interactive(topic)
 
-def run_content_factory(file_path: str, provider: str = "auto", api_key: str = None):
+def run_content_factory(file_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from brain.content_factory import ContentFactory
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
     factory = ContentFactory(agent)
     factory.syndicate_content(file_path)
 
-def run_archivist(target_dir: str, provider: str = "auto", api_key: str = None):
+def run_archivist(target_dir: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.proactive.archivist import DigitalArchivist
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
     archivist = DigitalArchivist(agent)
     archivist.organize_directory(target_dir)
 
-def run_contract_hunter(file_path: str, provider: str = "auto", api_key: str = None):
+def run_contract_hunter(file_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.contract_hunter import ContractHunter
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
     hunter = ContractHunter(agent)
     hunter.audit_contract(file_path)
 
 
-def run_deep_researcher(topic: str, provider: str = "auto", api_key: str = None):
+def run_deep_researcher(topic: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from agents.controller import AgentController
     from agents.profiles.deep_researcher import DeepWebResearcher
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active: return
     agent = AgentController(generate_fn=registry.generate_fn())
     researcher = DeepWebResearcher(agent)
     researcher.compile_dossier(topic)
 
 
-def run_multi_agent_debate(topic: str, provider: str = "auto", api_key: str = None):
+def run_multi_agent_debate(topic: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.multi_agent_orchestrator import MultiAgentOrchestrator
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Debate cannot start.")
         return
@@ -496,11 +451,11 @@ def run_multi_agent_debate(topic: str, provider: str = "auto", api_key: str = No
     print("=" * 60 + "\n")
 
 
-def run_agent_orchestrator(task: str, strategy: str = "auto", provider: str = "auto", api_key: str = None):
+def run_agent_orchestrator(task: str, strategy: str = "auto", provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.orchestrator import AgentOrchestrator, OrchestratorStrategy
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. Orchestrator cannot start.")
         return
@@ -517,12 +472,12 @@ def run_agent_orchestrator(task: str, strategy: str = "auto", provider: str = "a
     orchestrator.start_interactive(task)
 
 
-def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_key: str = None):
+def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
     from agents.profiles.devops_reviewer import DevOpsReviewer
     
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         print("❌ No active provider found. DevOps Reviewer cannot start.")
         return
@@ -537,7 +492,7 @@ def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_
     print(result.answer)
     print("=" * 60 + "\n")
 
-def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
+def run_aesce_dream_state(provider: str = "auto", api_key: str = None, base_url: str = None):
     """Universal Feature: Trigger the Auto-Evolution (AESCE) Engine."""
     import os
     from core.model_providers import ProviderRegistry
@@ -545,8 +500,7 @@ def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
     print(f"\n[INFO] Initializing Synthesized Consciousness Engine using provider '{provider}'...")
     registry = ProviderRegistry()
     if api_key:
-        api_key_env = f"{provider.upper()}_API_KEY"
-        os.environ[api_key_env] = api_key
+        os.environ["LLM_API_KEY"] = api_key
         
     from brain.memory import MemoryManager
     from brain.aesce import SynthesizedConsciousnessEngine
@@ -559,10 +513,10 @@ def run_aesce_dream_state(provider: str = "auto", api_key: str = None):
     except KeyboardInterrupt:
         print("\n[INFO] Dream State interrupted by user.")
 
-def run_swarm_task(task: str, provider: str = "auto", api_key: str = None):
+def run_swarm_task(task: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     """Run Multi-Agent Swarm Intelligence on a complex task."""
     from agents.profiles.swarm_intelligence import SwarmOrchestrator
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         return
     from agents.controller import AgentController
@@ -570,11 +524,11 @@ def run_swarm_task(task: str, provider: str = "auto", api_key: str = None):
     swarm = SwarmOrchestrator(generate_fn=registry.generate_fn(), agent_controller=agent)
     swarm.start_interactive(task)
 
-def run_multimodal_analysis(file_path: str, provider: str = "auto", api_key: str = None):
+def run_multimodal_analysis(file_path: str, provider: str = "auto", api_key: str = None, base_url: str = None):
     """Analyze a file using the Multimodal Pipeline (images, PDFs, audio, code)."""
     from brain.multimodal import MultimodalBrain
     from pathlib import Path
-    registry = create_provider_registry(provider, api_key)
+    registry = create_provider_registry(provider, api_key, base_url)
     if not registry.active:
         return
     brain = MultimodalBrain(generate_fn=registry.generate_fn())
@@ -702,8 +656,11 @@ def main():
     )
     parser.add_argument(
         "--provider", type=str, default="auto",
-        choices=["auto", "gemini", "claude", "chatgpt"],
-        help="LLM provider to use (default: auto-detect)"
+        help="Ignored. Setup for backwards compatibility."
+    )
+    parser.add_argument(
+        "--base-url", type=str, default=None,
+        help="Base URL for the Universal LLM provider"
     )
     parser.add_argument(
         "--api-key", type=str, default=None,
@@ -885,9 +842,9 @@ def main():
     elif args.providers:
         list_providers()
     elif args.chat:
-        interactive_chat(provider=args.provider, api_key=args.api_key)
+        interactive_chat(provider=args.provider, api_key=args.api_key, base_url=args.base_url)
     else:
-        start_server(provider=args.provider, api_key=args.api_key)
+        start_server(provider=args.provider, api_key=args.api_key, base_url=args.base_url)
 
 
 if __name__ == "__main__":

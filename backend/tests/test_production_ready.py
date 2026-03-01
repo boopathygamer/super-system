@@ -86,15 +86,12 @@ except Exception as e:
 print("\n[Phase 6C: Real-Time & Embeddings]")
 
 try:
-    from providers.real_llm_client import OpenAIProvider, ClaudeProvider, GeminiProvider, LLMResponse
-    # Just verify imports and class instantiation (no real API calls)
-    op = OpenAIProvider(api_key="test-key")
-    cp = ClaudeProvider(api_key="test-key")
-    gp = GeminiProvider(api_key="test-key")
-    assert op.name == "openai"
-    assert cp.name == "claude"
-    assert gp.name == "gemini"
-    print("  OK real_llm_client (OpenAI + Claude + Gemini providers)")
+    from providers.real_llm_client import UniversalLLMClient, LLMResponse
+    # Just verify import and class instantiation (no real API calls)
+    up = UniversalLLMClient(api_key="test-key", model="test-model", base_url="test-url")
+    assert up.name == "universal"
+    assert up.model == "test-model"
+    print("  OK real_llm_client (UniversalLLMClient provider)")
 except Exception as e:
     errors.append(f"real_llm_client: {e}"); print(f"  FAIL real_llm_client: {e}")
 

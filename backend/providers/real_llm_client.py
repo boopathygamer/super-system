@@ -1,15 +1,8 @@
 """
-Real LLM Client — Production HTTP Clients for OpenAI, Claude, Gemini
+Real LLM Client — Production HTTP Clients for Universal APIs
 ══════════════════════════════════════════════════════════════════════
-Replaces mock providers with real httpx.AsyncClient connections.
-Uses API keys from config/settings.py (loaded from .env).
-
-Features:
-  - Async HTTP requests with connection pooling
-  - Streaming support for token-by-token responses
-  - Automatic retry with exponential backoff
-  - Error classification and provider health tracking
-  - Token usage extraction from API responses
+Universal HTTP client using httpx. Allows connecting to any OpenAI-compatible API.
+Uses configuration from settings.py.
 """
 
 import asyncio
@@ -70,15 +63,15 @@ class RealLLMProvider:
             self._client = None
 
 
-class OpenAIProvider(RealLLMProvider):
-    """Real OpenAI API client (GPT-4o, GPT-4, etc.)"""
+class UniversalLLMClient(RealLLMProvider):
+    """Real Universal API client (OpenAI-compatible)"""
     
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str, base_url: str):
         super().__init__(
-            api_key=api_key,
+            api_key=api_key or "sk-no-key",
             model=model,
-            base_url="https://api.openai.com/v1",
-            name="openai",
+            base_url=base_url,
+            name="universal",
         )
     
     async def generate(self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> LLMResponse:
@@ -119,7 +112,7 @@ class OpenAIProvider(RealLLMProvider):
             )
     
     async def stream(self, prompt: str, max_tokens: int = 4096) -> AsyncIterator[str]:
-        """Stream tokens from OpenAI."""
+        """Stream tokens from the universal API."""
         try:
             client = self._get_client()
             async with client.stream(
@@ -149,132 +142,15 @@ class OpenAIProvider(RealLLMProvider):
             yield f"[Error: {e}]"
 
 
-class ClaudeProvider(RealLLMProvider):
-    """Real Anthropic Claude API client."""
-    
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
-        super().__init__(
-            api_key=api_key,
-            model=model,
-            base_url="https://api.anthropic.com/v1",
-            name="claude",
-        )
-    
-    async def generate(self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> LLMResponse:
-        start = time.time()
-        try:
-            client = self._get_client()
-            response = await client.post(
-                f"{self.base_url}/messages",
-                headers={
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "max_tokens": max_tokens,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": temperature,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            content = ""
-            for block in data.get("content", []):
-                if block.get("type") == "text":
-                    content += block.get("text", "")
-            
-            usage = data.get("usage", {})
-            return LLMResponse(
-                provider=self.name,
-                content=content,
-                model=data.get("model", self.model),
-                prompt_tokens=usage.get("input_tokens", 0),
-                completion_tokens=usage.get("output_tokens", 0),
-                total_tokens=usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
-                latency_ms=(time.time() - start) * 1000,
-                raw_response=data,
-            )
-        except Exception as e:
-            return LLMResponse(
-                provider=self.name, content="", is_success=False,
-                error=str(e), latency_ms=(time.time() - start) * 1000,
-            )
-
-
-class GeminiProvider(RealLLMProvider):
-    """Real Google Gemini API client."""
-    
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
-        super().__init__(
-            api_key=api_key,
-            model=model,
-            base_url="https://generativelanguage.googleapis.com/v1beta",
-            name="gemini",
-        )
-    
-    async def generate(self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> LLMResponse:
-        start = time.time()
-        try:
-            client = self._get_client()
-            response = await client.post(
-                f"{self.base_url}/models/{self.model}:generateContent",
-                params={"key": self.api_key},
-                headers={"Content-Type": "application/json"},
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "maxOutputTokens": max_tokens,
-                        "temperature": temperature,
-                    },
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            content = ""
-            for candidate in data.get("candidates", []):
-                for part in candidate.get("content", {}).get("parts", []):
-                    content += part.get("text", "")
-            
-            usage = data.get("usageMetadata", {})
-            return LLMResponse(
-                provider=self.name,
-                content=content,
-                model=self.model,
-                prompt_tokens=usage.get("promptTokenCount", 0),
-                completion_tokens=usage.get("candidatesTokenCount", 0),
-                total_tokens=usage.get("totalTokenCount", 0),
-                latency_ms=(time.time() - start) * 1000,
-                raw_response=data,
-            )
-        except Exception as e:
-            return LLMResponse(
-                provider=self.name, content="", is_success=False,
-                error=str(e), latency_ms=(time.time() - start) * 1000,
-            )
-
-
 def create_providers_from_config() -> List[RealLLMProvider]:
     """Create real providers from settings configuration."""
     from config.settings import provider_config
     
     providers = []
-    if provider_config.openai_api_key:
-        providers.append(OpenAIProvider(
-            api_key=provider_config.openai_api_key,
-            model=provider_config.openai_model,
-        ))
-    if provider_config.claude_api_key:
-        providers.append(ClaudeProvider(
-            api_key=provider_config.claude_api_key,
-            model=provider_config.claude_model,
-        ))
-    if provider_config.gemini_api_key:
-        providers.append(GeminiProvider(
-            api_key=provider_config.gemini_api_key,
-            model=provider_config.gemini_model,
+    if provider_config.is_configured:
+        providers.append(UniversalLLMClient(
+            api_key=provider_config.api_key,
+            model=provider_config.model,
+            base_url=provider_config.base_url,
         ))
     return providers
