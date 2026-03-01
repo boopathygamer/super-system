@@ -496,6 +496,27 @@ def run_multi_agent_debate(topic: str, provider: str = "auto", api_key: str = No
     print("=" * 60 + "\n")
 
 
+def run_agent_orchestrator(task: str, strategy: str = "auto", provider: str = "auto", api_key: str = None):
+    from core.model_providers import create_provider_registry
+    from agents.orchestrator import AgentOrchestrator, OrchestratorStrategy
+    
+    registry = create_provider_registry(provider, api_key)
+    if not registry.active:
+        print("❌ No active provider found. Orchestrator cannot start.")
+        return
+        
+    try:
+        strat_enum = OrchestratorStrategy(strategy.lower())
+    except ValueError:
+        print(f"⚠️ Unknown strategy '{strategy}', defaulting to 'auto'")
+        strat_enum = OrchestratorStrategy.AUTO
+
+    print(f"\n🎭 Initializing Agent Orchestrator ({registry.active.name}) — Strategy: {strat_enum.value.upper()}")
+    
+    orchestrator = AgentOrchestrator(generate_fn=registry.generate_fn())
+    orchestrator.start_interactive(task)
+
+
 def run_devops_reviewer(issue: str, repo_path: str, provider: str = "auto", api_key: str = None):
     from core.model_providers import create_provider_registry
     from agents.controller import AgentController
@@ -754,6 +775,17 @@ def main():
         help="Run a Multi-Agent Debate on a specific topic or problem."
     )
     
+    # === NEW: Production Agent Orchestrator ===
+    parser.add_argument(
+        "--orchestrate", type=str, default=None,
+        help="Run the advanced Agent Orchestrator on a complex task"
+    )
+    parser.add_argument(
+        "--strategy", type=str, default="auto",
+        choices=["auto", "swarm", "pipeline", "hierarchy", "debate"],
+        help="Orchestration strategy to use"
+    )
+    
     # === DevOps PR Reviewer ===
     parser.add_argument(
         "--devops", type=str, default=None,
@@ -834,6 +866,8 @@ def main():
         run_archivist(args.organize, provider=args.provider, api_key=args.api_key)
     elif args.contract_audit:
         run_contract_hunter(args.contract_audit, provider=args.provider, api_key=args.api_key)
+    elif args.orchestrate:
+        run_agent_orchestrator(args.orchestrate, strategy=args.strategy, provider=args.provider, api_key=args.api_key)
     elif args.collaborate:
         run_multi_agent_debate(args.collaborate, provider=args.provider, api_key=args.api_key)
     elif args.devops:

@@ -443,18 +443,28 @@ super-system/
     │   ├── hypothesis.py       # Multi-hypothesis generation
     │   ├── verifier.py         # Tri-Shield verification stack
     │   ├── consensus_engine.py # LLM-as-a-Judge ranking
-    │   ├── semantic_cache.py   # TF-IDF query deduplication
-    │   ├── vector_store.py     # Vector embeddings store
     │   ├── memory.py           # Working memory + bug diary
-    │   ├── long_term_memory.py # Persistent knowledge store
-    │   ├── temporal_memory.py  # Time-aware memory
-    │   ├── reasoning.py        # Core reasoning strategies
-    │   ├── metacognition.py    # Self-awareness of reasoning
-    │   ├── zk_proofs.py        # Zero-knowledge proofs
-    │   ├── emotional_firewall.py # Adversarial input defense
+    │   ├── temporal_memory.py  # Time-aware episodic memory
+    │   ├── semantic_cache.py   # TF-IDF query deduplication
+    │   ├── vector_store.py     # Pure Python vector embeddings
+    │   ├── reasoning.py        # Core reasoning (Chain of Thought)
+    │   ├── advanced_reasoning.py # Extended reasoning patterns
+    │   ├── cognitive_router.py # Routes to optimal cognitive strategy
+    │   ├── metacognition.py    # Self-awareness of reasoning quality
+    │   ├── confidence_oracle.py# Calibrated self-confidence scoring
+    │   ├── problem_classifier.py # Classifies problem type/complexity
+    │   ├── aesce.py            # Auto-Evolution Self-Contained Engine
+    │   ├── evolution.py        # Code evolution and optimization
+    │   ├── mistake_lesson_engine.py # Extracts generic lessons from fails
+    │   ├── emotional_firewall.py # Filters adversarial input / prompt injection
+    │   ├── multimodal.py       # Image, audio, PDF, and video analysis
+    │   ├── token_compressor.py # Compresses token contexts
+    │   ├── transpiler.py       # Cross-language code translation
+    │   ├── zk_proofs.py        # Zero-knowledge proofs and hashes
     │   └── solver/             # Math solver engine
     │
     ├── agents/                 # Tier 2: Agent Orchestration
+    │   ├── orchestrator.py     # Multi-Agent Coordination Engine
     │   ├── controller.py       # Central orchestrator (10 subsystems)
     │   ├── compiler.py         # Input → TaskSpec
     │   ├── generator.py        # Candidate generation
@@ -467,10 +477,11 @@ super-system/
     │   ├── safety/             # Threat scanner + quarantine
     │   ├── sandbox/            # Isolated code execution
     │   ├── justice/            # Law enforcement (Court, Police, Army)
+    │   ├── proactive/          # Background daemons (Night Watch, Swarm Defense)
     │   ├── sessions/           # SQLite session persistence
     │   ├── skills/             # Dynamic skill registry
     │   ├── profiles/           # 11 agent profiles
-    │   ├── persona/            # Dynamic personality
+    │   ├── persona.py          # Dynamic personality module
     │   └── experts/            # Domain expert modules
     │
     ├── providers/              # Tier 3: Multi-LLM Providers
@@ -526,6 +537,7 @@ The `main.py` entry point exposes **28 commands**:
 | `python main.py` | Interactive chat (default) |
 | `python main.py --server` | Start FastAPI server |
 | `python main.py --list-providers` | Show available model providers |
+| `python main.py --orchestrate "task"` | Run advanced Agent Orchestrator |
 | `python main.py --evolve "prompt"` | Run Code Evolution Engine |
 | `python main.py --night-watch` | Start Night Watch monitoring daemon |
 | `python main.py --threat-hunt file.py` | Security audit on a file |
