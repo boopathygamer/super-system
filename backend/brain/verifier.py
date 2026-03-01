@@ -16,8 +16,10 @@ Confidence score:
     Conf(s) = σ(α^T · v(s))
 """
 
+import ast
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
@@ -234,6 +236,32 @@ class VerifierStack:
         else:
             checks.append("❌ Contains error markers")
 
+        # Check 5: AST-based code analysis (if candidate contains Python code)
+        code_to_analyze = candidate
+        if "```" in candidate:
+            blocks = []
+            in_block = False
+            for line in candidate.split("\n"):
+                if line.strip().startswith("```") and not in_block:
+                    in_block = True
+                    continue
+                elif line.strip().startswith("```") and in_block:
+                    in_block = False
+                    continue
+                if in_block:
+                    blocks.append(line)
+            if blocks:
+                code_to_analyze = "\n".join(blocks)
+
+        if any(kw in code_to_analyze for kw in ["def ", "class ", "import "]):
+            ast_score, ast_checks = self._ast_static_analysis(code_to_analyze)
+            checks.extend(ast_checks)
+            # Weight AST checks: count them as additional checks
+            ast_check_count = len(ast_checks)
+            ast_passed = sum(1 for c in ast_checks if c.startswith("✅"))
+            total += ast_check_count
+            passed += ast_passed
+
         # Run custom checks
         if custom_checks:
             for check_fn in custom_checks:
@@ -250,6 +278,88 @@ class VerifierStack:
 
         score = passed / max(total, 1)
         return score, checks
+
+    def _ast_static_analysis(self, code: str) -> tuple:
+        """Real AST-based static analysis for Python code."""
+        checks = []
+
+        # 1. Syntax validation
+        try:
+            tree = ast.parse(code)
+            checks.append("✅ Valid Python syntax")
+        except SyntaxError as e:
+            checks.append(f"❌ Syntax error: {e.msg} (line {e.lineno})")
+            return 0.0, checks
+
+        # 2. Function/class count
+        functions = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        if functions or classes:
+            checks.append(f"✅ Defines {len(functions)} functions, {len(classes)} classes")
+        else:
+            checks.append("⚠️ No functions or classes defined")
+
+        # 3. Docstring coverage
+        documented = 0
+        total_defs = len(functions) + len(classes)
+        for node in functions + classes:
+            if (node.body and isinstance(node.body[0], ast.Expr)
+                    and isinstance(node.body[0].value, (ast.Constant, ast.Str))):
+                documented += 1
+        if total_defs > 0:
+            doc_ratio = documented / total_defs
+            if doc_ratio >= 0.5:
+                checks.append(f"✅ Docstring coverage: {doc_ratio:.0%}")
+            else:
+                checks.append(f"❌ Low docstring coverage: {doc_ratio:.0%}")
+
+        # 4. Dangerous pattern detection
+        dangerous_patterns = {
+            "eval(": "eval() usage (code injection risk)",
+            "exec(": "exec() usage (code execution risk)",
+            "__import__(": "dynamic import (obfuscation risk)",
+            "subprocess.call(": "subprocess with shell (injection risk)",
+            "os.system(": "os.system (command injection risk)",
+        }
+        found_dangerous = []
+        for pattern, desc in dangerous_patterns.items():
+            if pattern in code:
+                found_dangerous.append(desc)
+
+        if not found_dangerous:
+            checks.append("✅ No dangerous patterns detected")
+        else:
+            for d in found_dangerous:
+                checks.append(f"❌ Dangerous: {d}")
+
+        # 5. Complexity estimation (nesting depth)
+        max_depth = self._max_nesting_depth(tree)
+        if max_depth <= 4:
+            checks.append(f"✅ Nesting depth: {max_depth} (manageable)")
+        else:
+            checks.append(f"❌ Deep nesting: {max_depth} levels")
+
+        # 6. Return statement check for functions
+        for func in functions:
+            has_return = any(
+                isinstance(n, ast.Return) and n.value is not None
+                for n in ast.walk(func)
+            )
+            if not has_return and func.name.startswith(("get", "compute", "calc", "find")):
+                checks.append(f"⚠️ {func.name}() has no return value")
+
+        return 0.0, checks  # Score is computed by caller from pass/fail ratio
+
+    def _max_nesting_depth(self, node, depth=0) -> int:
+        """Calculate maximum nesting depth of AST."""
+        max_d = depth
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.For, ast.While, ast.If, ast.With,
+                                   ast.Try, ast.FunctionDef, ast.ClassDef)):
+                max_d = max(max_d, self._max_nesting_depth(child, depth + 1))
+            else:
+                max_d = max(max_d, self._max_nesting_depth(child, depth))
+        return max_d
 
     def _property_tests(
         self,

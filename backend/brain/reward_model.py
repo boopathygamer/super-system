@@ -6,9 +6,12 @@ Converts 6-layer verification scores into structured reward signals
 with learnable dimension weights and EMA normalization.
 """
 
+import json
 import logging
 import math
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -166,11 +169,17 @@ class RewardComputer:
     Weights are domain-specific and learnable.
     """
 
-    def __init__(self):
+    def __init__(self, persist_dir: str = "data/reward_weights"):
         self.normalizer = RewardNormalizer()
         self.domain_weights = dict(DOMAIN_REWARD_WEIGHTS)
         # Per-domain normalizers for better calibration
         self._domain_normalizers: Dict[str, RewardNormalizer] = {}
+        # Weight change history for auditing
+        self._weight_history: List[Dict] = []
+        # Persistence
+        self._persist_dir = Path(persist_dir)
+        self._persist_dir.mkdir(parents=True, exist_ok=True)
+        self._load_weights()
 
     def compute_reward(
         self,
@@ -254,6 +263,19 @@ class RewardComputer:
         new_weight = max(0.1, min(5.0, current + learning_rate * delta))
         self.domain_weights[domain][dimension_name] = new_weight
 
+        # Track history
+        self._weight_history.append({
+            "domain": domain,
+            "dimension": dimension_name,
+            "old_weight": current,
+            "new_weight": new_weight,
+            "delta": learning_rate * delta,
+        })
+
+        # Auto-save periodically
+        if len(self._weight_history) % 10 == 0:
+            self.save_weights()
+
         logger.debug(
             f"Updated weight {domain}/{dimension_name}: "
             f"{current:.3f} -> {new_weight:.3f}"
@@ -264,3 +286,61 @@ class RewardComputer:
         return self.domain_weights.get(
             domain, self.domain_weights.get("general", {})
         )
+
+    def save_weights(self) -> None:
+        """Persist current domain weights to disk."""
+        path = self._persist_dir / "domain_weights.json"
+        data = {
+            "domain_weights": self.domain_weights,
+            "history_length": len(self._weight_history),
+        }
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        # Save history (last 500 entries)
+        hist_path = self._persist_dir / "weight_history.json"
+        with open(hist_path, "w") as f:
+            json.dump(self._weight_history[-500:], f, indent=2)
+
+        logger.info(f"Saved reward weights to {path}")
+
+    def _load_weights(self) -> None:
+        """Load persisted weights from disk if available."""
+        path = self._persist_dir / "domain_weights.json"
+        if path.exists():
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+                loaded = data.get("domain_weights", {})
+                # Merge with defaults (new domains get defaults)
+                for domain, weights in loaded.items():
+                    self.domain_weights[domain] = weights
+                logger.info(f"Loaded reward weights from {path}")
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(f"Failed to load reward weights: {e}")
+
+        hist_path = self._persist_dir / "weight_history.json"
+        if hist_path.exists():
+            try:
+                with open(hist_path, "r") as f:
+                    self._weight_history = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                self._weight_history = []
+
+    def get_weight_history(self) -> List[Dict]:
+        """Get the weight change history for auditing."""
+        return list(self._weight_history)
+
+    def get_learning_stats(self) -> Dict[str, Any]:
+        """Get statistics about weight changes."""
+        if not self._weight_history:
+            return {"total_updates": 0}
+        return {
+            "total_updates": len(self._weight_history),
+            "domains_updated": list(set(
+                h["domain"] for h in self._weight_history
+            )),
+            "avg_delta": sum(
+                abs(h["delta"]) for h in self._weight_history
+            ) / len(self._weight_history),
+        }
